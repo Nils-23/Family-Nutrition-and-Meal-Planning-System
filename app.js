@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
         reject(new Error("Database connection timed out. The Cloud Firestore API is likely disabled or your database is not yet provisioned."));
-      }, 7000);
+      }, 25000);
     });
 
     await Promise.race([initPromise, timeoutPromise]);

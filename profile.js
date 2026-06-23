@@ -5,8 +5,8 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase-init.js";
+import { REGIONS } from "./data.js";
 
-// Default Profile State (used to seed Firestore if empty)
 // Default Profile State (used to seed Firestore if empty)
 const DEFAULT_STATE = {
   diners: [
@@ -20,18 +20,45 @@ const DEFAULT_STATE = {
   dietaryRestrictions: []
 };
 
-const STUDENT_ID = 'default_student';
+export function getCurrentStudentID() {
+  return localStorage.getItem('studentbite_logged_in_user') || 'default_student';
+}
 
 // Load state from Firestore (Single Document Reader)
 export async function loadProfileState() {
   try {
-    const studDocRef = doc(db, "students", STUDENT_ID);
+    const studentId = getCurrentStudentID();
+    const studDocRef = doc(db, "students", studentId);
     const studDocSnap = await getDoc(studDocRef);
 
     // 1. If profile doesn't exist, seed default profile settings
     if (!studDocSnap.exists()) {
-      await saveProfileState(DEFAULT_STATE);
-      return JSON.parse(JSON.stringify(DEFAULT_STATE));
+      let displayName = "Myself";
+      let userRegion = "usa";
+      try {
+        const userDocRef = doc(db, "users", studentId);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          displayName = userData.name || "Myself";
+          userRegion = userData.region || "usa";
+        }
+      } catch (err) {
+        console.warn("Could not retrieve user display name and region", err);
+      }
+
+      const customDefaultState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      if (customDefaultState.diners && customDefaultState.diners[0]) {
+        customDefaultState.diners[0].name = displayName;
+      }
+      customDefaultState.region = userRegion;
+
+      const regionData = REGIONS[userRegion] || REGIONS.usa;
+      customDefaultState.monthlyAllowance = regionData.defaultAllowance || 200;
+      customDefaultState.remainingBudget = regionData.defaultAllowance || 200;
+
+      await saveProfileState(customDefaultState);
+      return customDefaultState;
     }
 
     const data = studDocSnap.data();
@@ -56,7 +83,8 @@ export async function loadProfileState() {
 // Save state to Firestore (Single Document Writer)
 export async function saveProfileState(state) {
   try {
-    await setDoc(doc(db, "students", STUDENT_ID), {
+    const studentId = getCurrentStudentID();
+    await setDoc(doc(db, "students", studentId), {
       monthlyAllowance: state.monthlyAllowance,
       remainingBudget: state.remainingBudget,
       nextAllowanceDate: state.nextAllowanceDate,

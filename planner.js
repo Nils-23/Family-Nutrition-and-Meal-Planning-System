@@ -17,14 +17,15 @@ import {
   getIngredientPriceLocal 
 } from "./data.js";
 
-const STUDENT_ID = 'default_student';
+import { getCurrentStudentID } from "./profile.js";
 
 /**
  * Loads the active plan from Firestore. Reconstructs costs and names from the catalog cache.
  */
 export async function loadActivePlan(state) {
   try {
-    const planDocRef = doc(db, "meal_plans", STUDENT_ID);
+    const studentId = getCurrentStudentID();
+    const planDocRef = doc(db, "meal_plans", studentId);
     const planSnap = await getDoc(planDocRef);
 
     if (!planSnap.exists()) {
@@ -78,7 +79,8 @@ export async function saveActivePlan(plan) {
         planData[day][slot] = plan[day][slot].id;
       }
     }
-    await setDoc(doc(db, "meal_plans", STUDENT_ID), {
+    const studentId = getCurrentStudentID();
+    await setDoc(doc(db, "meal_plans", studentId), {
       plan: planData
     });
   } catch (e) {
@@ -92,7 +94,8 @@ export async function saveActivePlan(plan) {
  */
 export async function updateMealPlanSlot(day, slot, recipeId) {
   try {
-    await updateDoc(doc(db, "meal_plans", STUDENT_ID), {
+    const studentId = getCurrentStudentID();
+    await updateDoc(doc(db, "meal_plans", studentId), {
       [`plan.${day}.${slot}`]: recipeId
     });
   } catch (e) {
@@ -106,7 +109,8 @@ export async function updateMealPlanSlot(day, slot, recipeId) {
  */
 export async function clearActivePlan() {
   try {
-    await deleteDoc(doc(db, "meal_plans", STUDENT_ID));
+    const studentId = getCurrentStudentID();
+    await deleteDoc(doc(db, "meal_plans", studentId));
   } catch (e) {
     console.error("Error clearing meal plan", e);
   }

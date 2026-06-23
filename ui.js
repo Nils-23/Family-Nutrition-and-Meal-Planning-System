@@ -147,7 +147,10 @@ export function renderDashboard(state, activePlan) {
   
   // Update Header details (dynamically formats for single student or roommates)
   const memberCount = state.diners.length;
-  document.getElementById('sidebar-family-size').textContent = memberCount === 1 ? 'Individual Planner' : `Diners: ${memberCount}`;
+  const primaryName = state.diners[0] ? state.diners[0].name : 'Individual Planner';
+  document.getElementById('sidebar-family-size').textContent = memberCount === 1 
+    ? primaryName 
+    : `${primaryName} & ${memberCount - 1} Roommate${memberCount - 1 > 1 ? 's' : ''}`;
   document.getElementById('sidebar-region-season').textContent = `${regConfig.name.split(' (')[0]} • ${seasConfig.name.split(' / ')[0]}`;
 
   // If no plan, show blank state

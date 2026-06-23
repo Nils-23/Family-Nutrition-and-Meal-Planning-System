@@ -11,12 +11,14 @@ import {
   initializeFirestoreData,
   REGIONS, 
   SEASONS,
-  getRecipeCostLocal
+  getRecipeCostLocal,
+  DEMO_USERS
 } from './data.js';
 import { 
   loadProfileState, 
   saveProfileState, 
-  calculateDinerNeeds 
+  calculateDinerNeeds,
+  getCurrentStudentID
 } from './profile.js';
 import { 
   loadActivePlan,
@@ -45,7 +47,7 @@ let appState = null;
 let activePlan = null;
 let customShoppingItems = [];
 let currentView = 'dashboard';
-const STUDENT_ID = 'default_student';
+const STUDENT_ID = getCurrentStudentID();
 
 // Initialize the Application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -53,39 +55,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const loadingStatus = document.getElementById('loading-status');
 
   try {
-    // 1. Initialize Firestore catalogs (Seed if empty) and load states with a 7-second connection timeout
+    // 1. Initialize Firestore catalogs (Seed if empty, including demo student accounts)
     const initPromise = (async () => {
       await initializeFirestoreData(status => {
         loadingStatus.textContent = status;
       });
-
-      loadingStatus.textContent = "Loading Profile Settings...";
-
-      // 2. Load User Profile from Firestore
-      appState = await loadProfileState();
-
-      loadingStatus.textContent = "Loading Active Meal Plan...";
-
-      // 3. Load Active Plan from Firestore
-      activePlan = await loadActivePlan(appState);
-
-      loadingStatus.textContent = "Loading Groceries Shopping List...";
-
-      // 4 & 5. Load Custom Shopping Items and Checklist Checks from Firestore
-      const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
-      const shopDocSnap = await getDoc(shopDocRef);
-      
-      customShoppingItems = [];
-      let checklistStates = {};
-      
-      if (shopDocSnap.exists()) {
-        const shopData = shopDocSnap.data();
-        customShoppingItems = shopData.customItems || [];
-        checklistStates = shopData.checkedStates || {};
-      }
-      
-      localStorage.setItem('student_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
-      localStorage.setItem('student_nutrition_checklist_states', JSON.stringify(checklistStates));
     })();
 
     const timeoutPromise = new Promise((_, reject) => {
@@ -96,32 +70,135 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await Promise.race([initPromise, timeoutPromise]);
 
-    // 6. Setup dialog dismissal fallbacks
+    // 2. Check if student user is logged in
+    const loggedInUser = localStorage.getItem('studentbite_logged_in_user');
+
+    if (!loggedInUser) {
+      // Show login overlay/form and hide app layout
+      document.querySelector('.app-container').style.display = 'none';
+      document.getElementById('login-container').style.display = 'flex';
+      loadingOverlay.classList.add('hidden');
+
+      // Populate demo account badge list
+      const demoGrid = document.getElementById('login-demo-users-grid');
+      demoGrid.innerHTML = '';
+      DEMO_USERS.forEach(user => {
+        const badge = document.createElement('button');
+        badge.type = 'button';
+        badge.className = 'demo-user-badge';
+        badge.textContent = user.username;
+        badge.addEventListener('click', () => {
+          document.getElementById('login-username').value = user.username;
+          document.getElementById('login-password').value = user.username; // password is same as username
+          document.getElementById('login-password').focus();
+        });
+        demoGrid.appendChild(badge);
+      });
+
+      // Bind Login Form submit listener
+      const loginForm = document.getElementById('login-form');
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value.trim().toLowerCase();
+        const password = document.getElementById('login-password').value;
+        const errorEl = document.getElementById('login-error');
+        errorEl.textContent = '';
+
+        loadingOverlay.classList.remove('hidden');
+        loadingStatus.textContent = "Authenticating...";
+
+        try {
+          const userDocRef = doc(db, "users", username);
+          const userSnap = await getDoc(userDocRef);
+          if (!userSnap.exists()) {
+            loadingOverlay.classList.add('hidden');
+            errorEl.textContent = "Account not found. Select a demo profile below.";
+            return;
+          }
+
+          const userData = userSnap.data();
+          if (userData.password !== password) {
+            loadingOverlay.classList.add('hidden');
+            errorEl.textContent = "Incorrect password. Password must match the username.";
+            return;
+          }
+
+          // Successful login
+          localStorage.setItem('studentbite_logged_in_user', username);
+          location.reload(); // Reload page to parse with new user
+        } catch (err) {
+          loadingOverlay.classList.add('hidden');
+          console.error("Login verification failed", err);
+          errorEl.textContent = "Database connection error. Try again.";
+        }
+      });
+      return; // Stop initialization
+    }
+
+    // User is logged in: load user state data
+    loadingOverlay.classList.remove('hidden');
+    loadingStatus.textContent = "Loading Profile Settings...";
+
+    // Load User Profile from Firestore
+    appState = await loadProfileState();
+
+    loadingStatus.textContent = "Loading Active Meal Plan...";
+
+    // Load Active Plan from Firestore
+    activePlan = await loadActivePlan(appState);
+
+    loadingStatus.textContent = "Loading Groceries Shopping List...";
+
+    // Load Custom Shopping Items and Checklist Checks from Firestore
+    const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
+    const shopDocSnap = await getDoc(shopDocRef);
+    
+    customShoppingItems = [];
+    let checklistStates = {};
+    
+    if (shopDocSnap.exists()) {
+      const shopData = shopDocSnap.data();
+      customShoppingItems = shopData.customItems || [];
+      checklistStates = shopData.checkedStates || {};
+    }
+    
+    localStorage.setItem('student_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
+    localStorage.setItem('student_nutrition_checklist_states', JSON.stringify(checklistStates));
+
+    // Setup dialog dismissal fallbacks
     setupDialogDismissFallbacks();
 
-    // 7. Set up navigation click handlers
+    // Set up navigation click handlers
     setupNavigation();
 
-    // 8. Set up Profile settings handlers
+    // Set up Profile settings handlers
     setupProfileHandlers();
 
-    // 9. Set up Planner handlers
+    // Set up Planner handlers
     setupPlannerHandlers();
 
-    // 10. Set up Shopping List handlers
+    // Set up Shopping List handlers
     setupShoppingHandlers();
 
-    // 11. Set up Price Explorer search
+    // Set up Price Explorer search
     setupExplorerHandlers();
 
-    // 12. Hide loading overlay and trigger Initial View Draw
+    // Setup Sign Out Handler
+    const signOutBtn = document.getElementById('btn-signout');
+    if (signOutBtn) {
+      signOutBtn.addEventListener('click', () => {
+        localStorage.removeItem('studentbite_logged_in_user');
+        location.reload();
+      });
+    }
+
+    // Hide loading overlay and trigger Initial View Draw
     loadingOverlay.classList.add('hidden');
     switchView('dashboard');
 
   } catch (error) {
     console.error("Initialization failed", error);
     loadingStatus.innerHTML = `<span style="color: var(--accent-coral); font-weight: 600;">Error:</span> ${error.message}<br><br><span style="font-size:0.8rem; color:var(--color-text-muted);">Please click the link sent in the chat to enable the Firestore API, wait 1-2 minutes, then refresh this page.</span>`;
-    // Keep overlay visible showing the error
   }
 });
 

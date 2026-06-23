@@ -896,9 +896,122 @@ export async function initializeFirestoreData(statusCallback) {
     await seed3NFCatalog(statusCallback);
   }
 
+  // Seed demo student accounts if empty or outdated (user migration check)
+  const usersRef = collection(db, "users");
+  let usersSnapshot;
+  try {
+    usersSnapshot = await getDocs(usersRef);
+  } catch (e) {
+    console.warn("Could not check users collection status", e);
+  }
+
+  let needsUserMigration = false;
+  if (!usersSnapshot || usersSnapshot.empty) {
+    needsUserMigration = true;
+  } else {
+    try {
+      const testUserSnap = await getDoc(doc(db, "users", "otieno_kamau"));
+      if (!testUserSnap.exists()) {
+        needsUserMigration = true;
+      }
+    } catch (e) {
+      console.warn("User migration check failed, assuming database has correct structure", e);
+    }
+  }
+
+  if (needsUserMigration) {
+    if (statusCallback) statusCallback("Database users list is outdated. Migrating and seeding 50 regional student accounts...");
+    await seedDemoUsers(statusCallback);
+  }
+
   // 2. Load all catalogs from Firestore and rebuild memory variables
   if (statusCallback) statusCallback("Loading catalogs from Firestore database...");
   await loadAndRebuildCaches();
+}
+
+export const DEMO_USERS = [
+  // Kenya
+  { username: "otieno_kamau", name: "Otieno Kamau", region: "kenya" },
+  { username: "wambui_mwangi", name: "Wambui Mwangi", region: "kenya" },
+  { username: "kiprotich_cherono", name: "Kiprotich Cherono", region: "kenya" },
+  { username: "amina_juma", name: "Amina Juma", region: "kenya" },
+  { username: "adisa_okoth", name: "Adisa Okoth", region: "kenya" },
+  
+  // Tanzania
+  { username: "mussa_khalfan", name: "Mussa Khalfan", region: "tanzania" },
+  { username: "neema_shayo", name: "Neema Shayo", region: "tanzania" },
+  { username: "baraka_mrema", name: "Baraka Mrema", region: "tanzania" },
+  { username: "rehema_kilimo", name: "Rehema Kilimo", region: "tanzania" },
+  
+  // Uganda
+  { username: "kato_mukasa", name: "Kato Mukasa", region: "uganda" },
+  { username: "namubiru_nankya", name: "Namubiru Nankya", region: "uganda" },
+  { username: "okello_opiyo", name: "Okello Opiyo", region: "uganda" },
+  { username: "babirye_nakato", name: "Babirye Nakato", region: "uganda" },
+  
+  // UK
+  { username: "liam_smith", name: "Liam Smith", region: "uk" },
+  { username: "harry_potter", name: "Harry Potter", region: "uk" },
+  { username: "chloe_taylor", name: "Chloe Taylor", region: "uk" },
+  { username: "oliver_jones", name: "Oliver Jones", region: "uk" },
+  { username: "sophie_davies", name: "Sophie Davies", region: "uk" },
+  
+  // Germany
+  { username: "lukas_mueller", name: "Lukas Müller", region: "germany" },
+  { username: "sophie_schmidt", name: "Sophie Schmidt", region: "germany" },
+  { username: "maximilian_weber", name: "Maximilian Weber", region: "germany" },
+  { username: "lara_wagner", name: "Lara Wagner", region: "germany" },
+  { username: "jonas_becker", name: "Jonas Becker", region: "germany" },
+  
+  // France
+  { username: "lucas_martin", name: "Lucas Martin", region: "france" },
+  { username: "emma_bernard", name: "Emma Bernard", region: "france" },
+  { username: "louis_dubois", name: "Louis Dubois", region: "france" },
+  { username: "chloe_petit", name: "Chloé Petit", region: "france" },
+  { username: "hugo_durand", name: "Hugo Durand", region: "france" },
+  
+  // USA
+  { username: "michael_johnson", name: "Michael Johnson", region: "usa" },
+  { username: "olivia_williams", name: "Olivia Williams", region: "usa" },
+  { username: "noah_brown", name: "Noah Brown", region: "usa" },
+  { username: "emma_jones", name: "Emma Jones", region: "usa" },
+  { username: "james_miller", name: "James Miller", region: "usa" },
+  
+  // Canada
+  { username: "william_tremblay", name: "William Tremblay", region: "canada" },
+  { username: "amelia_roy", name: "Amelia Roy", region: "canada" },
+  { username: "logan_gauthier", name: "Logan Gauthier", region: "canada" },
+  { username: "charlotte_leblanc", name: "Charlotte Leblanc", region: "canada" },
+  { username: "carter_morin", name: "Carter Morin", region: "canada" },
+  
+  // Brazil
+  { username: "mateo_silva", name: "Mateo Silva", region: "brazil" },
+  { username: "isabella_santos", name: "Isabella Santos", region: "brazil" },
+  { username: "lucas_oliveira", name: "Lucas Oliveira", region: "brazil" },
+  { username: "julia_souza", name: "Julia Souza", region: "brazil" },
+  { username: "enzo_lima", name: "Enzo Lima", region: "brazil" },
+  { username: "sophia_pereira", name: "Sophia Pereira", region: "brazil" },
+  { username: "gabriel_alves", name: "Gabriel Alves", region: "brazil" },
+  { username: "valentina_gomes", name: "Valentina Gomes", region: "brazil" },
+  { username: "felipe_rocha", name: "Felipe Rocha", region: "brazil" },
+  { username: "mariana_ribeiro", name: "Mariana Ribeiro", region: "brazil" },
+  { username: "thiago_carvalho", name: "Thiago Carvalho", region: "brazil" },
+  { username: "alice_barbosa", name: "Alice Barbosa", region: "brazil" }
+];
+
+async function seedDemoUsers(statusCallback) {
+  const batch = writeBatch(db);
+  for (const user of DEMO_USERS) {
+    const userDocRef = doc(db, "users", user.username);
+    batch.set(userDocRef, {
+      username: user.username,
+      name: user.name,
+      password: user.username,
+      region: user.region
+    });
+  }
+  if (statusCallback) statusCallback("Saving 50 regional student accounts to Firestore...");
+  await batch.commit();
 }
 
 /**

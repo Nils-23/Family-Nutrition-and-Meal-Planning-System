@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NourishPlan | Smart Nutrition & Meal Planning System</title>
+  <title>StudentBite | Student Budget & Meal Planner</title>
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
@@ -12,8 +12,8 @@
     <div class="loading-content">
       <div class="spinner"></div>
       <div class="brand" style="margin-bottom: 0;">
-        <div class="brand-icon">N</div>
-        <h2 class="brand-name">Nourish<span>Plan</span></h2>
+        <div class="brand-icon">S</div>
+        <h2 class="brand-name">Student<span>Bite</span></h2>
       </div>
       <p id="loading-status" style="font-size: 0.9rem; color: var(--color-text-muted);">Connecting to Database...</p>
     </div>
@@ -24,8 +24,8 @@
     <aside class="sidebar">
       <div>
         <div class="brand">
-          <div class="brand-icon">N</div>
-          <h2 class="brand-name">Nourish<span>Plan</span></h2>
+          <div class="brand-icon">S</div>
+          <h2 class="brand-name">Student<span>Bite</span></h2>
         </div>
         
         <nav>
@@ -43,7 +43,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                Nutrition Profile
+                Student Profile
               </a>
             </li>
             <li class="nav-item">
@@ -67,7 +67,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Price Explorer
+                Cheap Eats Explorer
               </a>
             </li>
             <li class="nav-item">
@@ -84,9 +84,9 @@
       
       <div class="sidebar-footer">
         <div class="profile-summary">
-          <div class="profile-avatar">👨‍👩‍👧‍👦</div>
+          <div class="profile-avatar">🎓</div>
           <div class="profile-details">
-            <span class="profile-name" id="sidebar-family-size">Family of 3</span>
+            <span class="profile-name" id="sidebar-family-size">Individual Planner</span>
             <span class="profile-region" id="sidebar-region-season">Kenya • Spring</span>
           </div>
         </div>
@@ -107,24 +107,31 @@
         <div class="dashboard-grid">
           <!-- Budget and Highlights Column -->
           <div class="glass-card" style="display: flex; flex-direction: column; justify-content: space-between;">
-            <h2 class="recipe-section-title" style="margin-top:0;">Budget Progress</h2>
+            <h2 class="recipe-section-title" style="margin-top:0;">Allowance Tracker & Forecast</h2>
             <div style="display: flex; align-items: center; gap: 2rem; flex-wrap: wrap; margin: 1rem 0;">
               <div class="budget-gauge-container">
                 <div class="gauge-chart" id="dashboard-budget-gauge" style="--percent: 0;">
                   <div class="gauge-center-content">
                     <span class="gauge-value" id="dashboard-gauge-percent">0%</span>
-                    <div class="gauge-label">of Budget</div>
+                    <div class="gauge-label">Allowance Spent</div>
                   </div>
                 </div>
-                <div class="gauge-status-badge badge-success" id="dashboard-budget-status">Within Budget</div>
+                <div class="gauge-status-badge badge-success" id="dashboard-budget-status">Safe</div>
               </div>
               
               <div style="flex-grow: 1; display:flex; flex-direction:column; gap:0.75rem;">
                 <div class="metric-card">
                   <div class="metric-icon blue">💰</div>
                   <div class="metric-info">
-                    <span class="metric-label">Target Budget</span>
+                    <span class="metric-label">Monthly Allowance</span>
                     <span class="metric-value" id="dashboard-target-budget">$0.00</span>
+                  </div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-icon gold">💵</div>
+                  <div class="metric-info">
+                    <span class="metric-label">Remaining Food Cash</span>
+                    <span class="metric-value" id="dashboard-remaining-cash">$0.00</span>
                   </div>
                 </div>
                 <div class="metric-card">
@@ -138,7 +145,7 @@
             </div>
             
             <div style="border-top: 1px solid var(--border-glass); padding-top: 1rem;">
-              <span class="metric-label" style="display:block; margin-bottom:0.5rem;">Current Plan Status</span>
+              <span class="metric-label" style="display:block; margin-bottom:0.5rem;">Broke Index Forecast</span>
               <p id="dashboard-budget-text" style="font-size:0.9rem; line-height:1.4;">No meal plan generated yet. Navigate to the Weekly Planner to create one.</p>
             </div>
           </div>
@@ -194,15 +201,16 @@
                 </select>
               </div>
               <div class="form-group">
-                <label for="profile-budget-period">Budget Period</label>
-                <select id="profile-budget-period" class="form-control">
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
+                <label for="profile-allowance-amount" id="allowance-amount-label">Monthly Allowance (in local currency)</label>
+                <input type="number" id="profile-allowance-amount" class="form-control" min="1" step="any" required>
               </div>
               <div class="form-group">
-                <label for="profile-budget-amount" id="budget-amount-label">Weekly Budget (in local currency)</label>
-                <input type="number" id="profile-budget-amount" class="form-control" min="1" step="any" required>
+                <label for="profile-remaining-cash" id="remaining-cash-label">Remaining Food Cash (in local currency)</label>
+                <input type="number" id="profile-remaining-cash" class="form-control" min="0" step="any" required>
+              </div>
+              <div class="form-group">
+                <label for="profile-allowance-date">Next Allowance Date</label>
+                <input type="date" id="profile-allowance-date" class="form-control" required>
               </div>
               
               <div class="form-group">
@@ -219,8 +227,8 @@
           <!-- Right side: Family Members List -->
           <div class="glass-card">
             <div class="flex-between">
-              <h2 class="recipe-section-title" style="margin-top:0;">Household Members</h2>
-              <button class="btn btn-primary btn-sm" id="btn-add-member">Add Member</button>
+              <h2 class="recipe-section-title" style="margin-top:0;">Diners & Roommates</h2>
+              <button class="btn btn-primary btn-sm" id="btn-add-member">Add Diner</button>
             </div>
             
             <div class="members-list" id="profile-members-list">
@@ -424,13 +432,13 @@
   <!-- 1. Add Household Member Modal -->
   <dialog id="modal-member" closedby="any" aria-labelledby="modal-member-title">
     <div class="dialog-header">
-      <h3 class="dialog-title" id="modal-member-title">Add Household Member</h3>
+      <h3 class="dialog-title" id="modal-member-title">Add Roommate / Diner</h3>
       <button class="dialog-close-btn" type="button" aria-label="Close dialog">×</button>
     </div>
     <form id="add-member-form">
       <div class="form-group">
         <label for="member-name">Name / Label</label>
-        <input type="text" id="member-name" class="form-control" placeholder="e.g. Myself, Child 2, Aunt Sarah" required>
+        <input type="text" id="member-name" class="form-control" placeholder="e.g. Myself, Roommate Alex" required>
       </div>
       <div class="form-group">
         <label for="member-age">Age</label>
@@ -453,7 +461,7 @@
       </div>
       <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
         <button type="button" class="btn btn-secondary btn-close-modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Member</button>
+        <button type="submit" class="btn btn-primary">Save Diner</button>
       </div>
     </form>
   </dialog>

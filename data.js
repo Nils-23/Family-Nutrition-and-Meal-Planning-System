@@ -299,20 +299,60 @@ const DEFAULT_INGREDIENTS = {
     nutrition: { calories: 579, carbs: 22, protein: 21, fat: 49, fiber: 12, sodium: 1, iron: 3.7, calcium: 269, vitC: 0 },
     regionalMultipliers: { kenya: 1.6, tanzania: 1.7, uganda: 1.7, uk: 0.9, germany: 0.9, france: 0.9, usa: 0.8, canada: 0.9, brazil: 1.3 },
     seasonalMultipliers: { spring: 1.0, summer: 1.0, autumn: 1.0, winter: 1.0 }
+  },
+  ramen_noodles: {
+    id: 'ramen_noodles',
+    name: 'Instant Ramen Noodles',
+    category: 'Grains & Tubers',
+    basePrice: 0.90,
+    unit: 'kg',
+    nutrition: { calories: 436, carbs: 64, protein: 9, fat: 16, fiber: 2.4, sodium: 800, iron: 3.5, calcium: 15, vitC: 0 },
+    regionalMultipliers: { kenya: 1.0, tanzania: 1.0, uganda: 1.0, uk: 1.0, germany: 1.0, france: 1.0, usa: 1.0, canada: 1.0, brazil: 1.0 },
+    seasonalMultipliers: { spring: 1.0, summer: 1.0, autumn: 1.0, winter: 1.0 }
+  },
+  pasta: {
+    id: 'pasta',
+    name: 'Spaghetti / Pasta',
+    category: 'Grains & Tubers',
+    basePrice: 1.20,
+    unit: 'kg',
+    nutrition: { calories: 371, carbs: 75, protein: 13, fat: 1.5, fiber: 3.2, sodium: 6, iron: 1.3, calcium: 21, vitC: 0 },
+    regionalMultipliers: { kenya: 1.1, tanzania: 1.0, uganda: 1.0, uk: 0.9, germany: 0.9, france: 0.9, usa: 1.0, canada: 1.0, brazil: 1.0 },
+    seasonalMultipliers: { spring: 1.0, summer: 1.0, autumn: 1.0, winter: 1.0 }
+  },
+  garlic: {
+    id: 'garlic',
+    name: 'Garlic Bulbs',
+    category: 'Produce',
+    basePrice: 4.00,
+    unit: 'kg',
+    nutrition: { calories: 149, carbs: 33, protein: 6.4, fat: 0.5, fiber: 2.1, sodium: 17, iron: 1.7, calcium: 181, vitC: 31.2 },
+    regionalMultipliers: { kenya: 1.0, tanzania: 1.0, uganda: 1.0, uk: 1.0, germany: 1.0, france: 1.0, usa: 1.0, canada: 1.0, brazil: 1.0 },
+    seasonalMultipliers: { spring: 1.0, summer: 1.0, autumn: 1.0, winter: 1.0 }
+  },
+  green_onions: {
+    id: 'green_onions',
+    name: 'Green Onions (Scallions)',
+    category: 'Produce',
+    basePrice: 1.55,
+    unit: 'kg',
+    nutrition: { calories: 32, carbs: 7.3, protein: 1.8, fat: 0.2, fiber: 2.6, sodium: 16, iron: 1.5, calcium: 72, vitC: 18.8 },
+    regionalMultipliers: { kenya: 0.8, tanzania: 0.8, uganda: 0.8, uk: 1.1, germany: 1.1, france: 1.1, usa: 1.0, canada: 1.0, brazil: 0.9 },
+    seasonalMultipliers: { spring: 0.9, summer: 1.1, autumn: 1.0, winter: 1.0 }
   }
 };
 
 const DEFAULT_REGIONS = {
   name: 'Default Region List',
-  kenya: { name: 'Kenya (East Africa)', currency: 'KES', usdRate: 130, label: 'KES', climate: 'tropical' },
-  tanzania: { name: 'Tanzania (East Africa)', currency: 'TZS', usdRate: 2500, label: 'TZS', climate: 'tropical' },
-  uganda: { name: 'Uganda (East Africa)', currency: 'UGX', usdRate: 3800, label: 'UGX', climate: 'tropical' },
-  uk: { name: 'United Kingdom', currency: 'GBP', usdRate: 0.79, label: '£', climate: 'temperate' },
-  germany: { name: 'Germany', currency: 'EUR', usdRate: 0.92, label: '€', climate: 'temperate' },
-  france: { name: 'France', currency: 'EUR', usdRate: 0.92, label: '€', climate: 'temperate' },
-  usa: { name: 'United States', currency: 'USD', usdRate: 1.0, label: '$', climate: 'temperate' },
-  canada: { name: 'Canada', currency: 'CAD', usdRate: 1.36, label: 'C$', climate: 'temperate' },
-  brazil: { name: 'Brazil', currency: 'BRL', usdRate: 5.10, label: 'R$', climate: 'tropical' }
+  kenya: { name: 'Kenya (East Africa)', currency: 'KES', usdRate: 130, label: 'KES', climate: 'tropical', defaultAllowance: 25000 },
+  tanzania: { name: 'Tanzania (East Africa)', currency: 'TZS', usdRate: 2500, label: 'TZS', climate: 'tropical', defaultAllowance: 450000 },
+  uganda: { name: 'Uganda (East Africa)', currency: 'UGX', usdRate: 3800, label: 'UGX', climate: 'tropical', defaultAllowance: 700000 },
+  uk: { name: 'United Kingdom', currency: 'GBP', usdRate: 0.79, label: '£', climate: 'temperate', defaultAllowance: 160 },
+  germany: { name: 'Germany', currency: 'EUR', usdRate: 0.92, label: '€', climate: 'temperate', defaultAllowance: 180 },
+  france: { name: 'France', currency: 'EUR', usdRate: 0.92, label: '€', climate: 'temperate', defaultAllowance: 180 },
+  usa: { name: 'United States', currency: 'USD', usdRate: 1.0, label: '$', climate: 'temperate', defaultAllowance: 200 },
+  canada: { name: 'Canada', currency: 'CAD', usdRate: 1.36, label: 'C$', climate: 'temperate', defaultAllowance: 250 },
+  brazil: { name: 'Brazil', currency: 'BRL', usdRate: 5.10, label: 'R$', climate: 'tropical', defaultAllowance: 900 }
 };
 
 const DEFAULT_SEASONS = {
@@ -339,6 +379,7 @@ const DEFAULT_RECIPES = [
     prepTime: 25,
     servings: 4,
     dietary: ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'low_sodium'],
+    tag: 'budget_saver',
     ingredients: [
       { id: 'maize_meal', amount: 400 },
       { id: 'sukuma_wiki', amount: 500 },
@@ -363,6 +404,7 @@ const DEFAULT_RECIPES = [
     prepTime: 45,
     servings: 4,
     dietary: ['gluten_free', 'dairy_free'],
+    tag: 'budget_saver',
     ingredients: [
       { id: 'maize_meal', amount: 300 },
       { id: 'beef', amount: 400 },
@@ -387,6 +429,7 @@ const DEFAULT_RECIPES = [
     prepTime: 30,
     servings: 4,
     dietary: ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'low_sodium'],
+    tag: 'budget_saver',
     ingredients: [
       { id: 'rice', amount: 350 },
       { id: 'beans', amount: 250 },
@@ -412,6 +455,7 @@ const DEFAULT_RECIPES = [
     prepTime: 10,
     servings: 4,
     dietary: ['vegetarian', 'vegan', 'dairy_free', 'low_sodium'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'oats', amount: 250 },
       { id: 'bananas', amount: 400 },
@@ -433,6 +477,7 @@ const DEFAULT_RECIPES = [
     prepTime: 25,
     servings: 4,
     dietary: ['gluten_free', 'dairy_free'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'rice', amount: 350 },
       { id: 'chicken_breast', amount: 400 },
@@ -456,6 +501,7 @@ const DEFAULT_RECIPES = [
     prepTime: 12,
     servings: 2,
     dietary: ['vegetarian', 'low_sodium'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'bread', amount: 120 },
       { id: 'eggs', amount: 200 },
@@ -478,6 +524,7 @@ const DEFAULT_RECIPES = [
     prepTime: 25,
     servings: 4,
     dietary: ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'low_sodium'],
+    tag: 'budget_saver',
     ingredients: [
       { id: 'sweet_potatoes', amount: 500 },
       { id: 'cabbage', amount: 400 },
@@ -499,6 +546,7 @@ const DEFAULT_RECIPES = [
     prepTime: 30,
     servings: 4,
     dietary: ['gluten_free', 'dairy_free'],
+    tag: 'budget_saver',
     ingredients: [
       { id: 'rice', amount: 300 },
       { id: 'tilapia', amount: 500 },
@@ -522,6 +570,7 @@ const DEFAULT_RECIPES = [
     prepTime: 35,
     servings: 4,
     dietary: ['vegetarian', 'gluten_free'],
+    tag: 'budget_saver',
     ingredients: [
       { id: 'potatoes', amount: 800 },
       { id: 'onions', amount: 200 },
@@ -544,6 +593,7 @@ const DEFAULT_RECIPES = [
     prepTime: 20,
     servings: 2,
     dietary: ['gluten_free', 'dairy_free', 'low_sodium'],
+    tag: 'treat',
     ingredients: [
       { id: 'salmon', amount: 300 },
       { id: 'spinach', amount: 400 },
@@ -565,6 +615,7 @@ const DEFAULT_RECIPES = [
     prepTime: 10,
     servings: 2,
     dietary: ['vegetarian'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'bread', amount: 100 },
       { id: 'eggs', amount: 200 },
@@ -587,6 +638,7 @@ const DEFAULT_RECIPES = [
     prepTime: 5,
     servings: 2,
     dietary: ['vegetarian', 'vegan', 'dairy_free', 'low_sodium'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'bread', amount: 100 },
       { id: 'peanut_butter', amount: 50 },
@@ -607,6 +659,7 @@ const DEFAULT_RECIPES = [
     prepTime: 10,
     servings: 4,
     dietary: ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'low_sodium'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'beans', amount: 300 },
       { id: 'tomatoes', amount: 200 },
@@ -630,6 +683,7 @@ const DEFAULT_RECIPES = [
     prepTime: 30,
     servings: 2,
     dietary: ['gluten_free'],
+    tag: 'treat',
     ingredients: [
       { id: 'lamb_chops', amount: 400 },
       { id: 'potatoes', amount: 300 },
@@ -653,6 +707,7 @@ const DEFAULT_RECIPES = [
     prepTime: 15,
     servings: 2,
     dietary: ['vegetarian', 'gluten_free', 'dairy_free'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'spinach', amount: 200 },
       { id: 'avocado', amount: 300 },
@@ -677,6 +732,7 @@ const DEFAULT_RECIPES = [
     prepTime: 8,
     servings: 2,
     dietary: ['vegetarian', 'gluten_free'],
+    tag: 'quick_easy',
     ingredients: [
       { id: 'greek_yogurt', amount: 400 },
       { id: 'bananas', amount: 200 },
@@ -691,6 +747,101 @@ const DEFAULT_RECIPES = [
       'Sprinkle with the chopped almonds for a premium crunch, and serve immediately.'
     ],
     description: 'A quick, luxurious high-protein breakfast featuring thick Greek yogurt, sweet fresh fruits, and crunchy almonds.'
+  },
+  {
+    id: 'upgraded_ramen',
+    name: 'Upgraded Student Ramen with Egg & Spinach',
+    mealType: 'lunch',
+    prepTime: 12,
+    servings: 1,
+    dietary: ['vegetarian'],
+    tag: 'quick_easy',
+    ingredients: [
+      { id: 'ramen_noodles', amount: 120 },
+      { id: 'eggs', amount: 50 },
+      { id: 'spinach', amount: 100 },
+      { id: 'green_onions', amount: 20 },
+      { id: 'cooking_oil', amount: 5 }
+    ],
+    instructions: [
+      'Boil 2 cups of water in a small pot. Add ramen noodles and cook for 2 minutes.',
+      'Add spinach and chopped green onions directly to the pot with the noodles.',
+      'Crack in an egg and let it poach in the boiling noodle soup for another 2-3 minutes.',
+      'Drizzle with a tiny bit of cooking oil (or sesame oil if available) and stir in the soup seasoning packet.',
+      'Serve hot in a bowl. Perfect fast student meal!'
+    ],
+    description: 'An upgraded version of instant ramen, adding egg for protein and fresh spinach for essential vitamins.'
+  },
+  {
+    id: 'one_pot_pasta',
+    name: 'One-Pot Tomato, Garlic & Spinach Pasta',
+    mealType: 'dinner',
+    prepTime: 15,
+    servings: 2,
+    dietary: ['vegetarian', 'vegan', 'dairy_free', 'low_sodium'],
+    tag: 'quick_easy',
+    ingredients: [
+      { id: 'pasta', amount: 200 },
+      { id: 'tomatoes', amount: 200 },
+      { id: 'spinach', amount: 100 },
+      { id: 'onions', amount: 50 },
+      { id: 'garlic', amount: 10 },
+      { id: 'cooking_oil', amount: 15 }
+    ],
+    instructions: [
+      'In a large pot, combine pasta, diced tomatoes, sliced onions, minced garlic, cooking oil, and 3 cups of water.',
+      'Bring to a boil over high heat. Once boiling, reduce to a simmer and cook for 9-10 minutes, stirring frequently so the pasta doesn\'t stick.',
+      'When the pasta is cooked and the water has reduced to a thick sauce, stir in the fresh spinach until wilted (about 1 minute).',
+      'Season with salt and pepper to taste, and serve immediately. Minimum washing up!'
+    ],
+    description: 'A quick, simple, and cheap pasta dish where everything cooks in one pot, saving time and dishwashing effort.'
+  },
+  {
+    id: 'budget_rice_beans',
+    name: 'Savory Campus Rice & Beans',
+    mealType: 'dinner',
+    prepTime: 20,
+    servings: 2,
+    dietary: ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'low_sodium'],
+    tag: 'budget_saver',
+    ingredients: [
+      { id: 'rice', amount: 150 },
+      { id: 'beans', amount: 150 },
+      { id: 'onions', amount: 50 },
+      { id: 'cooking_oil', amount: 10 }
+    ],
+    instructions: [
+      'Rinse rice and boil in 300mL water until tender. Cover and steam.',
+      'Heat oil in a pan, sauté chopped onions until soft.',
+      'Add canned or pre-boiled beans to the onions. Season with salt, pepper, or curry powder.',
+      'Stir in the cooked rice and mix well until heated through.',
+      'Serve warm. Cheap, filling, and packed with complete proteins!'
+    ],
+    description: 'The ultimate budget staple. Combining rice and beans offers a complete protein source for pennies.'
+  },
+  {
+    id: 'egg_fried_rice',
+    name: 'Leftover Egg Fried Rice with Cabbage',
+    mealType: 'lunch',
+    prepTime: 10,
+    servings: 2,
+    dietary: ['vegetarian', 'dairy_free'],
+    tag: 'quick_easy',
+    ingredients: [
+      { id: 'rice', amount: 200 },
+      { id: 'eggs', amount: 100 },
+      { id: 'cabbage', amount: 150 },
+      { id: 'green_onions', amount: 20 },
+      { id: 'cooking_oil', amount: 15 }
+    ],
+    instructions: [
+      'Heat oil in a large frying pan or wok on high heat.',
+      'Sauté shredded cabbage and chopped green onions for 2 minutes until slightly softened.',
+      'Push vegetables to the side, crack eggs into the empty space, and scramble them quickly.',
+      'Add cooked (preferably leftover cold) rice to the pan and stir-fry everything together for 3-4 minutes.',
+      'Drizzle with soy sauce if available, mix, and serve hot.'
+    ],
+    description: 'A fast, budget-friendly way to use leftover rice, adding egg and cabbage for texture and nutrition.'
   }
 ];
 
@@ -725,8 +876,8 @@ export async function initializeFirestoreData(statusCallback) {
   let needsMigration = false;
   if (!snapshot.empty) {
     try {
-      const lambChopsSnap = await getDoc(doc(db, "ingredients", "lamb_chops"));
-      if (!lambChopsSnap.exists()) {
+      const ramenSnap = await getDoc(doc(db, "ingredients", "ramen_noodles"));
+      if (!ramenSnap.exists()) {
         needsMigration = true;
       }
     } catch (e) {
@@ -776,7 +927,8 @@ async function seed3NFCatalog(statusCallback) {
       currency: reg.currency,
       usdRate: reg.usdRate,
       label: reg.label,
-      climate: reg.climate
+      climate: reg.climate,
+      defaultAllowance: reg.defaultAllowance
     });
     opCount++;
     await commitBatchIfNeeded();
@@ -839,7 +991,8 @@ async function seed3NFCatalog(statusCallback) {
       description: recipe.description,
       ingredients: recipe.ingredients,
       instructions: recipe.instructions,
-      dietary: recipe.dietary
+      dietary: recipe.dietary,
+      tag: recipe.tag
     });
     opCount++;
     await commitBatchIfNeeded();

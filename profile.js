@@ -7,40 +7,43 @@ import {
 import { db } from "./firebase-init.js";
 
 // Default Profile State (used to seed Firestore if empty)
+// Default Profile State (used to seed Firestore if empty)
 const DEFAULT_STATE = {
-  familyMembers: [
-    { id: '1', name: 'Myself', age: 22, gender: 'male', activityLevel: 'moderate' }
+  diners: [
+    { id: '1', name: 'Myself', age: 21, gender: 'male', activityLevel: 'moderate' }
   ],
-  budget: 50,
-  budgetPeriod: 'weekly',
-  region: 'kenya',
+  monthlyAllowance: 200,
+  remainingBudget: 200,
+  nextAllowanceDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  region: 'usa',
   season: 'spring',
   dietaryRestrictions: []
 };
 
-const FAMILY_ID = 'default_family';
+const STUDENT_ID = 'default_student';
 
 // Load state from Firestore (Single Document Reader)
 export async function loadProfileState() {
   try {
-    const famDocRef = doc(db, "families", FAMILY_ID);
-    const famDocSnap = await getDoc(famDocRef);
+    const studDocRef = doc(db, "students", STUDENT_ID);
+    const studDocSnap = await getDoc(studDocRef);
 
     // 1. If profile doesn't exist, seed default profile settings
-    if (!famDocSnap.exists()) {
+    if (!studDocSnap.exists()) {
       await saveProfileState(DEFAULT_STATE);
       return JSON.parse(JSON.stringify(DEFAULT_STATE));
     }
 
-    const data = famDocSnap.data();
+    const data = studDocSnap.data();
 
     // Return reconstructed profile object from single document
     return {
-      familyMembers: data.familyMembers || [],
-      budget: data.budget,
-      budgetPeriod: data.budgetPeriod,
-      region: data.region,
-      season: data.season,
+      diners: data.diners || [],
+      monthlyAllowance: data.monthlyAllowance !== undefined ? data.monthlyAllowance : 200,
+      remainingBudget: data.remainingBudget !== undefined ? data.remainingBudget : 200,
+      nextAllowanceDate: data.nextAllowanceDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      region: data.region || 'usa',
+      season: data.season || 'spring',
       dietaryRestrictions: data.dietaryRestrictions || []
     };
 
@@ -53,12 +56,13 @@ export async function loadProfileState() {
 // Save state to Firestore (Single Document Writer)
 export async function saveProfileState(state) {
   try {
-    await setDoc(doc(db, "families", FAMILY_ID), {
-      budget: state.budget,
-      budgetPeriod: state.budgetPeriod,
+    await setDoc(doc(db, "students", STUDENT_ID), {
+      monthlyAllowance: state.monthlyAllowance,
+      remainingBudget: state.remainingBudget,
+      nextAllowanceDate: state.nextAllowanceDate,
       region: state.region,
       season: state.season,
-      familyMembers: state.familyMembers,
+      diners: state.diners,
       dietaryRestrictions: state.dietaryRestrictions
     });
   } catch (e) {
@@ -156,16 +160,16 @@ export function calculateIndividualNeeds(member) {
 }
 
 /**
- * Calculates the combined daily nutritional needs for the whole family.
+ * Calculates the combined daily nutritional needs for all diners.
  */
-export function calculateFamilyNeeds(familyMembers, activeDietaryRestrictions = []) {
+export function calculateDinerNeeds(diners, activeDietaryRestrictions = []) {
   const totalNeeds = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, iron: 0, calcium: 0, vitC: 0 };
 
-  if (!familyMembers || familyMembers.length === 0) {
-    return calculateIndividualNeeds({ age: 30, gender: 'female', activityLevel: 'moderate' });
+  if (!diners || diners.length === 0) {
+    return calculateIndividualNeeds({ age: 21, gender: 'male', activityLevel: 'moderate' });
   }
 
-  for (const member of familyMembers) {
+  for (const member of diners) {
     const memberNeeds = calculateIndividualNeeds(member);
     for (const key in totalNeeds) {
       totalNeeds[key] += memberNeeds[key];
@@ -173,7 +177,7 @@ export function calculateFamilyNeeds(familyMembers, activeDietaryRestrictions = 
   }
 
   if (activeDietaryRestrictions.includes('low_sodium')) {
-    totalNeeds.sodium = familyMembers.length * 1500;
+    totalNeeds.sodium = diners.length * 1500;
   }
 
   return totalNeeds;

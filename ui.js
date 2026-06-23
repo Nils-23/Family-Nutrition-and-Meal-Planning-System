@@ -1,6 +1,6 @@
 // UI Presentation and Render Layer
 import { REGIONS, SEASONS, DIETARY_PRESETS, INGREDIENTS, RECIPES, getIngredientPriceLocal, getRecipeCostLocal, getRecipeNutritionPerServing } from './data.js';
-import { calculateFamilyNeeds } from './profile.js';
+import { calculateDinerNeeds } from './profile.js';
 import { calculatePlanCost, calculatePlanNutrition, getMealAlternatives, generateShoppingList } from './planner.js';
 
 // Setup custom dialog fallbacks for browser support
@@ -38,9 +38,9 @@ export function initProfileForm(state) {
   const regionSelect = document.getElementById('profile-region');
   const seasonSelect = document.getElementById('profile-season');
   const dietaryContainer = document.getElementById('profile-dietary-checkboxes');
-  const budgetInput = document.getElementById('profile-budget-amount');
-  const budgetPeriodSelect = document.getElementById('profile-budget-period');
-  const budgetLabel = document.getElementById('budget-amount-label');
+  const allowanceInput = document.getElementById('profile-allowance-amount');
+  const remainingInput = document.getElementById('profile-remaining-cash');
+  const dateInput = document.getElementById('profile-allowance-date');
 
   // Populate Regions
   regionSelect.innerHTML = '';
@@ -62,10 +62,11 @@ export function initProfileForm(state) {
   }
   seasonSelect.value = state.season;
 
-  // Set Budget fields
-  budgetInput.value = state.budget;
-  budgetPeriodSelect.value = state.budgetPeriod;
-  updateBudgetLabelText(state.region, state.budgetPeriod);
+  // Set Allowance fields
+  allowanceInput.value = state.monthlyAllowance;
+  remainingInput.value = state.remainingBudget;
+  dateInput.value = state.nextAllowanceDate || '';
+  updateBudgetLabelText(state.region);
 
   // Populate Dietary options
   dietaryContainer.innerHTML = '';
@@ -85,18 +86,19 @@ export function initProfileForm(state) {
     dietaryContainer.appendChild(label);
   }
 
-  // Update budget label when period or region is updated
+  // Update budget label when region is updated
   const onSettingsChange = () => {
-    updateBudgetLabelText(regionSelect.value, budgetPeriodSelect.value);
+    updateBudgetLabelText(regionSelect.value);
   };
   regionSelect.addEventListener('change', onSettingsChange);
-  budgetPeriodSelect.addEventListener('change', onSettingsChange);
 }
 
-function updateBudgetLabelText(regionKey, period) {
-  const budgetLabel = document.getElementById('budget-amount-label');
+function updateBudgetLabelText(regionKey) {
+  const allowanceLabel = document.getElementById('allowance-amount-label');
+  const remainingLabel = document.getElementById('remaining-cash-label');
   const r = REGIONS[regionKey] || REGIONS.usa;
-  budgetLabel.textContent = `${period === 'weekly' ? 'Weekly' : 'Monthly'} Target Budget (${r.label} in ${r.currency})`;
+  if (allowanceLabel) allowanceLabel.textContent = `Monthly Allowance (${r.label} in ${r.currency})`;
+  if (remainingLabel) remainingLabel.textContent = `Remaining Food Cash (${r.label} in ${r.currency})`;
 }
 
 // 2. Render Household Members List on Profile Page
@@ -104,20 +106,20 @@ export function renderMembers(state, onDeleteMember) {
   const container = document.getElementById('profile-members-list');
   container.innerHTML = '';
 
-  if (state.familyMembers.length === 0) {
+  if (!state.diners || state.diners.length === 0) {
     container.innerHTML = `
       <div class="text-center" style="padding: 2rem; color: var(--color-text-muted);">
-        No members configured. Add yourself or household members to calculate tailored nutritional targets.
+        No diners configured. Add yourself and any flatmates/roommates.
       </div>
     `;
     return;
   }
 
-  state.familyMembers.forEach(m => {
+  state.diners.forEach(m => {
     const card = document.createElement('div');
     card.className = 'member-item-card';
     
-    const emoji = m.gender === 'male' ? (m.age < 18 ? '👦' : '👨') : (m.age < 18 ? '👧' : '👩');
+    const emoji = m.gender === 'male' ? (m.age < 23 ? '👦' : '👨') : (m.age < 23 ? '👧' : '👩');
     
     card.innerHTML = `
       <div class="member-avatar">${emoji}</div>
@@ -143,9 +145,9 @@ export function renderDashboard(state, activePlan) {
   const regConfig = REGIONS[state.region] || REGIONS.usa;
   const seasConfig = SEASONS[state.season] || SEASONS.spring;
   
-  // Update Header details (dynamically formats for single user or multiple users)
-  const memberCount = state.familyMembers.length;
-  document.getElementById('sidebar-family-size').textContent = memberCount === 1 ? 'Individual Planner' : `Household of ${memberCount}`;
+  // Update Header details (dynamically formats for single student or roommates)
+  const memberCount = state.diners.length;
+  document.getElementById('sidebar-family-size').textContent = memberCount === 1 ? 'Individual Planner' : `Diners: ${memberCount}`;
   document.getElementById('sidebar-region-season').textContent = `${regConfig.name.split(' (')[0]} • ${seasConfig.name.split(' / ')[0]}`;
 
   // If no plan, show blank state
@@ -153,6 +155,7 @@ export function renderDashboard(state, activePlan) {
     document.getElementById('dashboard-budget-gauge').style.setProperty('--percent', '0');
     document.getElementById('dashboard-gauge-percent').textContent = '0%';
     document.getElementById('dashboard-target-budget').textContent = `${regConfig.label}0.00`;
+    document.getElementById('dashboard-remaining-cash').textContent = `${regConfig.label}0.00`;
     document.getElementById('dashboard-actual-cost').textContent = `${regConfig.label}0.00`;
     
     const statusBadge = document.getElementById('dashboard-budget-status');
@@ -168,59 +171,70 @@ export function renderDashboard(state, activePlan) {
     document.getElementById('dashboard-insights').innerHTML = `
       <div class="insight-item success">
         <div>💡</div>
-        <div>Configure your nutrition profile and generate a meal plan. The system will optimize prices using local seasonal adjustments!</div>
+        <div>Configure your profile and generate a meal plan. The system will optimize prices using local seasonal adjustments!</div>
       </div>
     `;
     return;
   }
 
-  // Budget calculations
-  const totalCost = calculatePlanCost(activePlan);
-  const targetBudget = state.budget;
-  const isWeekly = state.budgetPeriod === 'weekly';
-  const targetBudgetDaily = isWeekly ? targetBudget / 7 : targetBudget / 30;
-  const actualCostDaily = totalCost / 7;
+  // Budget & Broke Index Forecast calculations
+  const totalCost = calculatePlanCost(activePlan); // weekly plan cost
+  const dailyMealCost = totalCost / 7;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextAllowanceDate = state.nextAllowanceDate ? new Date(state.nextAllowanceDate) : new Date(today.getTime() + 15*24*60*60*1000);
+  nextAllowanceDate.setHours(0, 0, 0, 0);
+  const timeDiff = nextAllowanceDate.getTime() - today.getTime();
+  const daysUntilAllowance = Math.max(1, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
 
-  // Scaled comparison:
-  // Show plan cost vs target budget scaled to a weekly frame
-  const planCostWeekly = totalCost;
-  const budgetLimitWeekly = isWeekly ? targetBudget : targetBudget / 4.33;
-
-  const percentUsed = Math.round((planCostWeekly / budgetLimitWeekly) * 100);
+  const projectedCostUntilAllowance = dailyMealCost * daysUntilAllowance;
+  
+  const allowanceSpent = Math.max(0, state.monthlyAllowance - state.remainingBudget);
+  const percentSpent = state.monthlyAllowance > 0 ? Math.round((allowanceSpent / state.monthlyAllowance) * 100) : 0;
+  const percentSpentClamped = Math.max(0, Math.min(100, percentSpent));
   
   const gauge = document.getElementById('dashboard-budget-gauge');
-  gauge.style.setProperty('--percent', Math.min(percentUsed, 100).toString());
-  document.getElementById('dashboard-gauge-percent').textContent = `${percentUsed}%`;
+  gauge.style.setProperty('--percent', percentSpentClamped.toString());
+  document.getElementById('dashboard-gauge-percent').textContent = `${percentSpentClamped}%`;
 
   const currencySymbol = regConfig.label;
-  document.getElementById('dashboard-target-budget').textContent = `${currencySymbol}${budgetLimitWeekly.toFixed(2)}`;
-  document.getElementById('dashboard-actual-cost').textContent = `${currencySymbol}${planCostWeekly.toFixed(2)}`;
+  document.getElementById('dashboard-target-budget').textContent = `${currencySymbol}${state.monthlyAllowance.toFixed(2)}`;
+  document.getElementById('dashboard-remaining-cash').textContent = `${currencySymbol}${state.remainingBudget.toFixed(2)}`;
+  document.getElementById('dashboard-actual-cost').textContent = `${currencySymbol}${projectedCostUntilAllowance.toFixed(2)}`;
 
   // Status Badge and text
   const statusBadge = document.getElementById('dashboard-budget-status');
   const budgetText = document.getElementById('dashboard-budget-text');
   
-  if (percentUsed <= 100) {
-    statusBadge.textContent = 'Within Budget';
+  const daysBudgetLasts = dailyMealCost > 0 ? state.remainingBudget / dailyMealCost : 999;
+  
+  if (daysBudgetLasts >= daysUntilAllowance) {
+    statusBadge.textContent = 'Safe';
     statusBadge.className = 'gauge-status-badge badge-success';
     gauge.style.setProperty('--gauge-color', 'var(--accent-tertiary)');
     
-    const savings = budgetLimitWeekly - planCostWeekly;
-    budgetText.innerHTML = `Your plan is <strong>under budget</strong>! You are saving <strong>${currencySymbol}${savings.toFixed(2)}</strong> this week.`;
+    const surplus = state.remainingBudget - projectedCostUntilAllowance;
+    budgetText.innerHTML = `Your food budget is <strong>safe</strong>! You will have a surplus of <strong>${currencySymbol}${surplus.toFixed(2)}</strong> by your next allowance in <strong>${daysUntilAllowance} days</strong>.`;
   } else {
-    statusBadge.textContent = 'Budget Exceeded';
+    const runOutDays = Math.floor(daysBudgetLasts);
+    const runOutDate = new Date(today.getTime() + runOutDays * 24 * 60 * 60 * 1000);
+    const options = { month: 'short', day: 'numeric' };
+    const formattedDate = runOutDate.toLocaleDateString('en-US', options);
+    const daysShort = daysUntilAllowance - runOutDays;
+    
+    statusBadge.textContent = 'Broke Alert';
     statusBadge.className = 'gauge-status-badge badge-danger';
     gauge.style.setProperty('--gauge-color', 'var(--accent-coral)');
     
-    const excess = planCostWeekly - budgetLimitWeekly;
-    budgetText.innerHTML = `Your plan exceeds your weekly budget target by <strong style="color:var(--accent-coral);">${currencySymbol}${excess.toFixed(2)}</strong>. Swap high-cost meals to save.`;
+    budgetText.innerHTML = `⚠️ <strong>Broke Alert</strong>: At this rate, you will run out of money on <strong>${formattedDate}</strong>, which is <strong>${daysShort} days before</strong> your next allowance! Consider swapping high-cost meals.`;
   }
 
   // Populate Highlights/Savings tips dynamically
-  renderInsights(state, activePlan, percentUsed);
+  renderInsights(state, activePlan, percentSpent);
 
   // Populate Dashboard Nutrition
-  const familyDailyTargets = calculateFamilyNeeds(state.familyMembers, state.dietaryRestrictions);
+  const familyDailyTargets = calculateDinerNeeds(state.diners, state.dietaryRestrictions);
   const analysis = calculatePlanNutrition(activePlan, familyDailyTargets, state.dietaryRestrictions);
   
   const nutContainer = document.getElementById('dashboard-nutrition-metrics');
@@ -320,7 +334,7 @@ function renderInsights(state, activePlan, percentUsed) {
   }
 
   // 3. Nutrition insight based on plan details
-  const familyDailyTargets = calculateFamilyNeeds(state.familyMembers, state.dietaryRestrictions);
+  const familyDailyTargets = calculateDinerNeeds(state.diners, state.dietaryRestrictions);
   const analysis = calculatePlanNutrition(activePlan, familyDailyTargets, state.dietaryRestrictions);
 
   if (analysis.percentage.iron < 80) {
@@ -354,6 +368,14 @@ function renderInsights(state, activePlan, percentUsed) {
   });
 }
 
+// Helper to render cost/difficulty tags
+function getRecipeTagHtml(recipeId) {
+  const recipe = RECIPES.find(r => r.id === recipeId);
+  if (!recipe || !recipe.tag) return '';
+  const tagLabel = recipe.tag === 'budget_saver' ? 'Budget' : recipe.tag === 'quick_easy' ? 'Quick' : 'Treat';
+  return `<span class="recipe-tag ${recipe.tag}">${tagLabel}</span>`;
+}
+
 // 4. Render Weekly Planner
 export function renderPlanner(state, activePlan, onRecipeClick, onSwapClick) {
   const grid = document.getElementById('planner-grid');
@@ -363,7 +385,7 @@ export function renderPlanner(state, activePlan, onRecipeClick, onSwapClick) {
   const currencySymbol = regConfig.label;
 
   // Header display update
-  const budgetLimitWeekly = state.budgetPeriod === 'weekly' ? state.budget : state.budget / 4.33;
+  const budgetLimitWeekly = state.monthlyAllowance / 4.33;
   const targetText = document.getElementById('planner-target-budget-display');
   const actualText = document.getElementById('planner-actual-cost-display');
   const plannerBadge = document.getElementById('planner-status-badge');
@@ -408,7 +430,10 @@ export function renderPlanner(state, activePlan, onRecipeClick, onSwapClick) {
       <!-- Breakfast Card -->
       <div class="meal-slot-card" data-day="${day}" data-slot="breakfast" data-id="${dayPlan.breakfast.id}">
         <div>
-          <div class="meal-slot-tag">Breakfast</div>
+          <div class="meal-slot-header-row">
+            <span class="meal-slot-tag">Breakfast</span>
+            ${getRecipeTagHtml(dayPlan.breakfast.id)}
+          </div>
           <div class="meal-slot-title">${dayPlan.breakfast.name}</div>
         </div>
         <div class="meal-slot-footer">
@@ -419,7 +444,10 @@ export function renderPlanner(state, activePlan, onRecipeClick, onSwapClick) {
       <!-- Lunch Card -->
       <div class="meal-slot-card" data-day="${day}" data-slot="lunch" data-id="${dayPlan.lunch.id}">
         <div>
-          <div class="meal-slot-tag">Lunch</div>
+          <div class="meal-slot-header-row">
+            <span class="meal-slot-tag">Lunch</span>
+            ${getRecipeTagHtml(dayPlan.lunch.id)}
+          </div>
           <div class="meal-slot-title">${dayPlan.lunch.name}</div>
         </div>
         <div class="meal-slot-footer">
@@ -430,7 +458,10 @@ export function renderPlanner(state, activePlan, onRecipeClick, onSwapClick) {
       <!-- Dinner Card -->
       <div class="meal-slot-card" data-day="${day}" data-slot="dinner" data-id="${dayPlan.dinner.id}">
         <div>
-          <div class="meal-slot-tag">Dinner</div>
+          <div class="meal-slot-header-row">
+            <span class="meal-slot-tag">Dinner</span>
+            ${getRecipeTagHtml(dayPlan.dinner.id)}
+          </div>
           <div class="meal-slot-title">${dayPlan.dinner.name}</div>
         </div>
         <div class="meal-slot-footer">
@@ -441,7 +472,10 @@ export function renderPlanner(state, activePlan, onRecipeClick, onSwapClick) {
       <!-- Snack Card -->
       <div class="meal-slot-card" data-day="${day}" data-slot="snack" data-id="${dayPlan.snack.id}">
         <div>
-          <div class="meal-slot-tag">Snack</div>
+          <div class="meal-slot-header-row">
+            <span class="meal-slot-tag">Snack</span>
+            ${getRecipeTagHtml(dayPlan.snack.id)}
+          </div>
           <div class="meal-slot-title">${dayPlan.snack.name}</div>
         </div>
         <div class="meal-slot-footer">
@@ -474,7 +508,7 @@ export function renderPlanner(state, activePlan, onRecipeClick, onSwapClick) {
 
 // 5. Render Nutrition Analytics View
 export function renderNutrition(state, activePlan) {
-  const familyDailyTargets = calculateFamilyNeeds(state.familyMembers, state.dietaryRestrictions);
+  const familyDailyTargets = calculateDinerNeeds(state.diners, state.dietaryRestrictions);
 
   if (!activePlan || Object.keys(activePlan).length === 0) {
     document.getElementById('nutrition-viability-badge').textContent = 'Pending Plan';
@@ -862,9 +896,15 @@ export function showSwapModal(day, mealSlot, state, onSelectSwap) {
     const card = document.createElement('div');
     card.className = 'swap-option-card';
     
+    const r = RECIPES.find(recipe => recipe.id === alt.id);
+    const tagHtml = (r && r.tag) ? getRecipeTagHtml(alt.id) : '';
+
     card.innerHTML = `
       <div class="swap-card-left">
-        <div class="swap-card-title">${alt.name}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap: 0.5rem; margin-bottom: 0.25rem;">
+          <div class="swap-card-title" style="margin-bottom:0;">${alt.name}</div>
+          ${tagHtml}
+        </div>
         <div class="swap-card-desc">${alt.description}</div>
         <div style="margin-top: 0.5rem; font-size: 0.7rem; color:var(--color-text-muted);">
           Cals: ${alt.nutrition.calories}kcal • Protein: ${alt.nutrition.protein}g • Fiber: ${alt.nutrition.fiber}g

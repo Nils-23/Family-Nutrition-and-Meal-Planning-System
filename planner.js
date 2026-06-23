@@ -17,14 +17,14 @@ import {
   getIngredientPriceLocal 
 } from "./data.js";
 
-const FAMILY_ID = 'default_family';
+const STUDENT_ID = 'default_student';
 
 /**
  * Loads the active plan from Firestore. Reconstructs costs and names from the catalog cache.
  */
 export async function loadActivePlan(state) {
   try {
-    const planDocRef = doc(db, "meal_plans", FAMILY_ID);
+    const planDocRef = doc(db, "meal_plans", STUDENT_ID);
     const planSnap = await getDoc(planDocRef);
 
     if (!planSnap.exists()) {
@@ -32,7 +32,7 @@ export async function loadActivePlan(state) {
     }
 
     const savedPlan = planSnap.data().plan || {};
-    const familySize = state.familyMembers.length;
+    const familySize = state.diners.length;
     const region = state.region;
     const season = state.season;
     const dietaryRestrictions = state.dietaryRestrictions;
@@ -78,7 +78,7 @@ export async function saveActivePlan(plan) {
         planData[day][slot] = plan[day][slot].id;
       }
     }
-    await setDoc(doc(db, "meal_plans", FAMILY_ID), {
+    await setDoc(doc(db, "meal_plans", STUDENT_ID), {
       plan: planData
     });
   } catch (e) {
@@ -92,7 +92,7 @@ export async function saveActivePlan(plan) {
  */
 export async function updateMealPlanSlot(day, slot, recipeId) {
   try {
-    await updateDoc(doc(db, "meal_plans", FAMILY_ID), {
+    await updateDoc(doc(db, "meal_plans", STUDENT_ID), {
       [`plan.${day}.${slot}`]: recipeId
     });
   } catch (e) {
@@ -106,7 +106,7 @@ export async function updateMealPlanSlot(day, slot, recipeId) {
  */
 export async function clearActivePlan() {
   try {
-    await deleteDoc(doc(db, "meal_plans", FAMILY_ID));
+    await deleteDoc(doc(db, "meal_plans", STUDENT_ID));
   } catch (e) {
     console.error("Error clearing meal plan", e);
   }
@@ -116,10 +116,10 @@ export async function clearActivePlan() {
  * Generates a 7-day meal plan based on profile state (family members, budget, region, season, dietary restrictions).
  */
 export function generateMealPlan(state) {
-  const { familyMembers, budget, budgetPeriod, region, season, dietaryRestrictions } = state;
-  const familySize = familyMembers.length;
+  const { diners, monthlyAllowance, region, season, dietaryRestrictions } = state;
+  const familySize = diners.length;
 
-  const weeklyBudget = budgetPeriod === 'weekly' ? budget : budget / 4.33;
+  const weeklyBudget = monthlyAllowance / 4.33;
   const targetDailyBudget = weeklyBudget / 7;
 
   const compatibleRecipes = RECIPES.filter(r => isRecipeCompatible(r.id, dietaryRestrictions));
@@ -207,8 +207,8 @@ export function generateMealPlan(state) {
  * Returns a list of alternative recipes for a specific meal slot that match dietary restrictions.
  */
 export function getMealAlternatives(mealType, state) {
-  const { familyMembers, region, season, dietaryRestrictions } = state;
-  const familySize = familyMembers.length;
+  const { diners, region, season, dietaryRestrictions } = state;
+  const familySize = diners.length;
 
   const compatible = RECIPES.filter(r => r.mealType === mealType && isRecipeCompatible(r.id, dietaryRestrictions));
 
@@ -284,8 +284,8 @@ export function calculatePlanNutrition(plan, familyDailyTargets, dietaryRestrict
  * Generates an aggregated grocery shopping list from a 7-day meal plan.
  */
 export function generateShoppingList(plan, state, customItems = []) {
-  const { familyMembers, region, season, dietaryRestrictions } = state;
-  const familySize = familyMembers.length;
+  const { diners, region, season, dietaryRestrictions } = state;
+  const familySize = diners.length;
   const ingredientsMap = {};
 
   for (const day in plan) {

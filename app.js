@@ -16,7 +16,7 @@ import {
 import { 
   loadProfileState, 
   saveProfileState, 
-  calculateFamilyNeeds 
+  calculateDinerNeeds 
 } from './profile.js';
 import { 
   loadActivePlan,
@@ -45,7 +45,7 @@ let appState = null;
 let activePlan = null;
 let customShoppingItems = [];
 let currentView = 'dashboard';
-const FAMILY_ID = 'default_family';
+const STUDENT_ID = 'default_student';
 
 // Initialize the Application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       loadingStatus.textContent = "Loading Groceries Shopping List...";
 
       // 4 & 5. Load Custom Shopping Items and Checklist Checks from Firestore
-      const shopDocRef = doc(db, "shopping_lists", FAMILY_ID);
+      const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
       const shopDocSnap = await getDoc(shopDocRef);
       
       customShoppingItems = [];
@@ -84,8 +84,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         checklistStates = shopData.checkedStates || {};
       }
       
-      localStorage.setItem('family_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
-      localStorage.setItem('family_nutrition_checklist_states', JSON.stringify(checklistStates));
+      localStorage.setItem('student_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
+      localStorage.setItem('student_nutrition_checklist_states', JSON.stringify(checklistStates));
     })();
 
     const timeoutPromise = new Promise((_, reject) => {
@@ -206,8 +206,9 @@ function setupProfileHandlers() {
 
     const selectedRegion = document.getElementById('profile-region').value;
     const selectedSeason = document.getElementById('profile-season').value;
-    const budgetPeriod = document.getElementById('profile-budget-period').value;
-    const budgetAmount = parseFloat(document.getElementById('profile-budget-amount').value);
+    const allowanceAmount = parseFloat(document.getElementById('profile-allowance-amount').value);
+    const remainingCash = parseFloat(document.getElementById('profile-remaining-cash').value);
+    const allowanceDate = document.getElementById('profile-allowance-date').value;
 
     const checkedRestrictions = [];
     const checkboxes = document.querySelectorAll('#profile-dietary-checkboxes input[type="checkbox"]');
@@ -219,8 +220,9 @@ function setupProfileHandlers() {
 
     appState.region = selectedRegion;
     appState.season = selectedSeason;
-    appState.budgetPeriod = budgetPeriod;
-    appState.budget = budgetAmount;
+    appState.monthlyAllowance = allowanceAmount;
+    appState.remainingBudget = remainingCash;
+    appState.nextAllowanceDate = allowanceDate;
     appState.dietaryRestrictions = checkedRestrictions;
 
     showSavingIndicator(true);
@@ -273,7 +275,7 @@ function setupProfileHandlers() {
       activityLevel: activity
     };
 
-    appState.familyMembers.push(newMember);
+    appState.diners.push(newMember);
 
     showSavingIndicator(true);
     try {
@@ -284,7 +286,7 @@ function setupProfileHandlers() {
       updateProfileNutritionTarget();
       
       if (activePlan) {
-        const regen = confirm("A new household member has been added. Would you like to regenerate the meal plan to satisfy their nutritional requirements and scale the budget?");
+        const regen = confirm("A new diner has been added. Would you like to regenerate the meal plan to satisfy their nutritional requirements and scale the budget?");
         if (regen) {
           await triggerPlanGeneration();
         } else {
@@ -292,7 +294,7 @@ function setupProfileHandlers() {
         }
       }
     } catch (err) {
-      alert("Failed to add member: " + err.message);
+      alert("Failed to add diner: " + err.message);
     } finally {
       showSavingIndicator(false);
     }
@@ -300,13 +302,13 @@ function setupProfileHandlers() {
 }
 
 async function handleMemberDelete(memberId) {
-  if (appState.familyMembers.length <= 1) {
-    alert("You must keep at least one household member in your profile.");
+  if (appState.diners.length <= 1) {
+    alert("You must keep at least one diner in your profile.");
     return;
   }
   
-  if (confirm("Are you sure you want to remove this member?")) {
-    appState.familyMembers = appState.familyMembers.filter(m => m.id !== memberId);
+  if (confirm("Are you sure you want to remove this diner?")) {
+    appState.diners = appState.diners.filter(m => m.id !== memberId);
     
     showSavingIndicator(true);
     try {
@@ -316,7 +318,7 @@ async function handleMemberDelete(memberId) {
       updateProfileNutritionTarget();
       
       if (activePlan) {
-        const regen = confirm("Household size has changed. Regenerate the meal plan to optimize nutrition and budget?");
+        const regen = confirm("The number of diners has changed. Regenerate the meal plan to optimize nutrition and budget?");
         if (regen) {
           await triggerPlanGeneration();
         } else {
@@ -324,7 +326,7 @@ async function handleMemberDelete(memberId) {
         }
       }
     } catch (err) {
-      alert("Failed to remove member: " + err.message);
+      alert("Failed to remove diner: " + err.message);
     } finally {
       showSavingIndicator(false);
     }
@@ -333,14 +335,14 @@ async function handleMemberDelete(memberId) {
 
 function updateProfileNutritionTarget() {
   const targetCaloriesSpan = document.getElementById('profile-target-calories');
-  const needs = calculateFamilyNeeds(appState.familyMembers, appState.dietaryRestrictions);
+  const needs = calculateDinerNeeds(appState.diners, appState.dietaryRestrictions);
   targetCaloriesSpan.innerHTML = `${Math.round(needs.calories)} kcal <span style="font-size:0.9rem; font-weight:normal; color:var(--color-text-muted);">/ day</span>`;
 }
 
 function regeneratePlanCosts() {
   if (!activePlan) return;
   // Re-scale local memory costs of existing recipes in active plan based on new profile settings
-  const familySize = appState.familyMembers.length;
+  const familySize = appState.diners.length;
   import('./data.js').then(({ RECIPES, getRecipeCostLocal }) => {
     for (const day in activePlan) {
       const dayMeals = activePlan[day];
@@ -364,8 +366,8 @@ function setupPlannerHandlers() {
 }
 
 async function triggerPlanGeneration() {
-  if (appState.familyMembers.length === 0) {
-    alert("Please add at least one household member in the Nutrition Profile page first.");
+  if (appState.diners.length === 0) {
+    alert("Please add at least one diner in the Student Profile page first.");
     switchView('profile');
     return;
   }
@@ -379,14 +381,14 @@ async function triggerPlanGeneration() {
     activePlan = newPlan;
 
     // Clear shopping checklist item checked states in Firestore
-    const shopDocRef = doc(db, "shopping_lists", FAMILY_ID);
+    const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
     await setDoc(shopDocRef, {
       customItems: customShoppingItems,
       checkedStates: {}
     });
     
     // Reset local checked states registry
-    localStorage.setItem('family_nutrition_checklist_states', JSON.stringify({}));
+    localStorage.setItem('student_nutrition_checklist_states', JSON.stringify({}));
     
     renderActiveView();
     alert("A new budget-optimized 7-day meal plan has been generated and saved to Firestore!");
@@ -451,14 +453,14 @@ function setupShoppingHandlers() {
       customShoppingItems.push(newItem);
 
       // Save updated custom items to Firestore
-      const shopDocRef = doc(db, "shopping_lists", FAMILY_ID);
-      const checklistStates = JSON.parse(localStorage.getItem('family_nutrition_checklist_states')) || {};
+      const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
+      const checklistStates = JSON.parse(localStorage.getItem('student_nutrition_checklist_states')) || {};
       await setDoc(shopDocRef, {
         customItems: customShoppingItems,
         checkedStates: checklistStates
       });
       
-      localStorage.setItem('family_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
+      localStorage.setItem('student_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
       
       form.reset();
       renderActiveView();
@@ -478,14 +480,14 @@ function setupShoppingHandlers() {
         customShoppingItems = customShoppingItems.filter(item => !item.checked);
         
         // Save to Firestore
-        const shopDocRef = doc(db, "shopping_lists", FAMILY_ID);
+        const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
         await setDoc(shopDocRef, {
           customItems: customShoppingItems,
           checkedStates: {} // reset checklist checks
         });
 
-        localStorage.setItem('family_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
-        localStorage.setItem('family_nutrition_checklist_states', JSON.stringify({}));
+        localStorage.setItem('student_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
+        localStorage.setItem('student_nutrition_checklist_states', JSON.stringify({}));
 
         renderActiveView();
       } catch (err) {
@@ -505,7 +507,7 @@ function setupShoppingHandlers() {
 async function handleShoppingCheckToggle(itemId, isChecked, isCustom) {
   showSavingIndicator(true);
   try {
-    const checklistStates = JSON.parse(localStorage.getItem('family_nutrition_checklist_states')) || {};
+    const checklistStates = JSON.parse(localStorage.getItem('student_nutrition_checklist_states')) || {};
     
     if (isCustom) {
       const item = customShoppingItems.find(i => i.id === itemId);
@@ -517,14 +519,14 @@ async function handleShoppingCheckToggle(itemId, isChecked, isCustom) {
     }
     
     // Save checklist state to Firestore
-    const shopDocRef = doc(db, "shopping_lists", FAMILY_ID);
+    const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
     await setDoc(shopDocRef, {
       customItems: customShoppingItems,
       checkedStates: checklistStates
     });
     
-    localStorage.setItem('family_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
-    localStorage.setItem('family_nutrition_checklist_states', JSON.stringify(checklistStates));
+    localStorage.setItem('student_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
+    localStorage.setItem('student_nutrition_checklist_states', JSON.stringify(checklistStates));
     
     renderActiveView();
   } catch (err) {
@@ -538,15 +540,15 @@ async function handleCustomShoppingDelete(itemId) {
   showSavingIndicator(true);
   try {
     customShoppingItems = customShoppingItems.filter(item => item.id !== itemId);
-    const checklistStates = JSON.parse(localStorage.getItem('family_nutrition_checklist_states')) || {};
+    const checklistStates = JSON.parse(localStorage.getItem('student_nutrition_checklist_states')) || {};
     
-    const shopDocRef = doc(db, "shopping_lists", FAMILY_ID);
+    const shopDocRef = doc(db, "shopping_lists", STUDENT_ID);
     await setDoc(shopDocRef, {
       customItems: customShoppingItems,
       checkedStates: checklistStates
     });
 
-    localStorage.setItem('family_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
+    localStorage.setItem('student_nutrition_custom_shopping_items', JSON.stringify(customShoppingItems));
     
     renderActiveView();
   } catch (err) {
@@ -562,7 +564,7 @@ function copyShoppingListToClipboard() {
   const regConfig = REGIONS[appState.region] || REGIONS.usa;
   const currencySymbol = regConfig.label;
 
-  const checklistStates = JSON.parse(localStorage.getItem('family_nutrition_checklist_states')) || {};
+  const checklistStates = JSON.parse(localStorage.getItem('student_nutrition_checklist_states')) || {};
   const activeList = generateShoppingList(activePlan, appState, customShoppingItems);
   
   activeList.forEach(item => {
@@ -571,7 +573,7 @@ function copyShoppingListToClipboard() {
     }
   });
 
-  let text = `🛒 NourishPlan Grocery Shopping List\n`;
+  let text = `🛒 StudentBite Grocery Shopping List\n`;
   text += `Region: ${regConfig.name} | Season: ${SEASONS[appState.season].name.split(' / ')[0]}\n`;
   text += `==========================================\n`;
 
@@ -593,7 +595,7 @@ function copyShoppingListToClipboard() {
 
   text += `\n==========================================\n`;
   text += `Estimated Unchecked Items Total: ${currencySymbol}${totalCost.toFixed(2)}\n`;
-  text += `Generated with NourishPlan Smart Planner System.`;
+  text += `Generated with StudentBite Smart Planner System.`;
 
   navigator.clipboard.writeText(text).then(() => {
     alert("Grocery shopping list formatted and copied to clipboard!");

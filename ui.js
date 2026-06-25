@@ -87,10 +87,71 @@ export function initProfileForm(state) {
   }
 
   // Update budget label when region is updated
-  const onSettingsChange = () => {
-    updateBudgetLabelText(regionSelect.value);
-  };
-  regionSelect.addEventListener('change', onSettingsChange);
+  if (!regionSelect.dataset.listenerAttached) {
+    const onSettingsChange = () => {
+      updateBudgetLabelText(regionSelect.value);
+    };
+    regionSelect.addEventListener('change', onSettingsChange);
+    regionSelect.dataset.listenerAttached = 'true';
+  }
+
+  // Populate OPE Email and Key
+  const opeEmailInput = document.getElementById('profile-ope-email');
+  const opeKeyInput = document.getElementById('profile-ope-key');
+  if (opeEmailInput) opeEmailInput.value = state.opeEmail || '';
+  if (opeKeyInput) opeKeyInput.value = state.opeApiKey || '';
+
+  // Handle warning banner/badge dynamically
+  let warningDiv = document.getElementById('ope-key-warning');
+  if (!warningDiv) {
+    warningDiv = document.createElement('div');
+    warningDiv.id = 'ope-key-warning';
+    warningDiv.style.marginTop = '0.5rem';
+    warningDiv.style.marginBottom = '0.5rem';
+    warningDiv.style.fontSize = '0.75rem';
+    warningDiv.style.borderRadius = '4px';
+    warningDiv.style.padding = '0.5rem';
+    warningDiv.style.textAlign = 'center';
+    warningDiv.style.fontWeight = '500';
+    
+    const reqBtn = document.getElementById('btn-request-renewal-otp');
+    if (reqBtn && reqBtn.parentNode) {
+      reqBtn.parentNode.insertBefore(warningDiv, reqBtn);
+    }
+  }
+
+  const lastRenewed = state.opeKeyLastRenewed ? new Date(state.opeKeyLastRenewed) : new Date();
+  const diffTime = Date.now() - lastRenewed.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays >= 30) {
+    warningDiv.className = 'badge-danger';
+    warningDiv.style.display = 'block';
+    warningDiv.textContent = `⚠️ Key expired! Renew now (Renewed ${diffDays} days ago on ${state.opeKeyLastRenewed})`;
+  } else if (diffDays >= 25) {
+    warningDiv.className = 'badge-warning';
+    warningDiv.style.display = 'block';
+    warningDiv.textContent = `⚠️ Key expiring soon! Renew in ${30 - diffDays} days (Renewed on ${state.opeKeyLastRenewed})`;
+  } else {
+    warningDiv.className = 'badge-success';
+    warningDiv.style.display = 'block';
+    warningDiv.textContent = `✅ Key is active (Renewed ${diffDays} day(s) ago on ${state.opeKeyLastRenewed})`;
+  }
+
+  // Update Price Sync Status
+  const priceSyncStatus = document.getElementById('price-sync-status');
+  const priceSyncIndicator = document.getElementById('price-sync-indicator');
+  if (priceSyncStatus && priceSyncIndicator) {
+    if (state.lastPriceSync && state.lastPriceSync !== 'Never') {
+      priceSyncStatus.textContent = `Last Sync: ${state.lastPriceSync}`;
+      priceSyncIndicator.className = 'gauge-status-badge badge-success';
+      priceSyncIndicator.textContent = 'Synced';
+    } else {
+      priceSyncStatus.textContent = `Last Sync: Offline multipliers`;
+      priceSyncIndicator.className = 'gauge-status-badge badge-warning';
+      priceSyncIndicator.textContent = 'Offline';
+    }
+  }
 }
 
 function updateBudgetLabelText(regionKey) {
@@ -766,9 +827,15 @@ export function renderShoppingList(state, activePlan, customItems, onCheckToggle
 }
 
 // 8. Show Recipe Detail Modal
-export function showRecipeModal(recipeId, dietaryRestrictions, regionKey, seasonKey) {
+export function showRecipeModal(recipeId, state) {
   const recipe = RECIPES.find(r => r.id === recipeId);
   if (!recipe) return;
+
+  const dietaryRestrictions = state.dietaryRestrictions || [];
+  const regionKey = state.region;
+  const seasonKey = state.season;
+  const familySize = state.diners ? state.diners.length : 1;
+  const servingScale = familySize / recipe.servings;
 
   const regConfig = REGIONS[regionKey] || REGIONS.usa;
   const currencySymbol = regConfig.label;
@@ -794,10 +861,31 @@ export function showRecipeModal(recipeId, dietaryRestrictions, regionKey, season
     }
 
     const ingInfo = INGREDIENTS[finalIngId];
+    const scaledAmount = ingRef.amount * servingScale;
+    
+    let displayAmount = '';
+    if (ingInfo) {
+      if (ingInfo.unit === 'kg') {
+        if (scaledAmount >= 1000) {
+          displayAmount = `${(scaledAmount / 1000).toFixed(2)} kg`;
+        } else {
+          displayAmount = `${Math.round(scaledAmount)} g`;
+        }
+      } else { // Liter
+        if (scaledAmount >= 1000) {
+          displayAmount = `${(scaledAmount / 1000).toFixed(2)} L`;
+        } else {
+          displayAmount = `${Math.round(scaledAmount)} mL`;
+        }
+      }
+    } else {
+      displayAmount = `${Math.round(scaledAmount)} g`;
+    }
+
     return `
       <li class="recipe-ing-row">
         <span>• ${ingInfo ? ingInfo.name : finalIngId}${note}</span>
-        <span style="color:var(--color-text-muted);">${ingRef.amount} ${ingInfo ? (ingInfo.unit === 'kg' ? 'g' : 'mL') : 'g'}</span>
+        <span style="color:var(--color-text-muted);">${displayAmount}</span>
       </li>
     `;
   }).join('');

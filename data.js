@@ -7,6 +7,8 @@ import {
   writeBatch 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase-init.js";
+import { OPEN_ENGINE_API_KEY, OPEN_ENGINE_EMAIL } from "./config.js";
+
 
 // Private Default Mockup Catalogs (used for seeding Firestore on first load)
 const DEFAULT_INGREDIENTS = {
@@ -847,11 +849,15 @@ const DEFAULT_RECIPES = [
 
 
 // Runtime cached data maps/lists (exposed to the rest of the application)
+// REGIONS, SEASONS, DIETARY_PRESETS and RECIPES are fully static — they are initialised
+// here directly from their DEFAULT_* constants so we never need to fetch them from Firestore.
 export let INGREDIENTS = {};
-export let REGIONS = {};
-export let SEASONS = {};
-export let DIETARY_PRESETS = {};
-export let RECIPES = [];
+export const REGIONS = Object.fromEntries(
+  Object.entries(DEFAULT_REGIONS).filter(([k]) => k !== 'name')
+);
+export const SEASONS = { ...DEFAULT_SEASONS };
+export const DIETARY_PRESETS = { ...DEFAULT_DIETARY_PRESETS };
+export const RECIPES = DEFAULT_RECIPES.map(r => ({ ...r }));
 
 /**
  * Initializes the Firestore application catalogs (Ingredients, Regions, Seasons, Dietary Presets, Recipes)
@@ -924,8 +930,8 @@ export async function initializeFirestoreData(statusCallback) {
     await seedDemoUsers(statusCallback);
   }
 
-  // 2. Load all catalogs from Firestore and rebuild memory variables
-  if (statusCallback) statusCallback("Loading catalogs from Firestore database...");
+  // 2. Load ingredient live-prices from Firestore (static data already in memory)
+  if (statusCallback) statusCallback("Loading ingredient prices from database...");
   await loadAndRebuildCaches();
 }
 
@@ -1030,46 +1036,8 @@ async function seed3NFCatalog(statusCallback) {
     }
   };
 
-  // A. Seed Regions
-  if (statusCallback) statusCallback("Seeding geographic regions...");
-  for (const [key, reg] of Object.entries(DEFAULT_REGIONS)) {
-    // Skip name property metadata
-    if (key === 'name') continue;
-    batch.set(doc(db, "regions", key), {
-      name: reg.name,
-      currency: reg.currency,
-      usdRate: reg.usdRate,
-      label: reg.label,
-      climate: reg.climate,
-      defaultAllowance: reg.defaultAllowance
-    });
-    opCount++;
-    await commitBatchIfNeeded();
-  }
-
-  // B. Seed Seasons
-  if (statusCallback) statusCallback("Seeding seasonal configurations...");
-  for (const [key, seas] of Object.entries(DEFAULT_SEASONS)) {
-    batch.set(doc(db, "seasons", key), {
-      name: seas.name,
-      desc: seas.desc
-    });
-    opCount++;
-    await commitBatchIfNeeded();
-  }
-
-  // C. Seed Dietary Presets
-  if (statusCallback) statusCallback("Seeding dietary presets...");
-  for (const [key, preset] of Object.entries(DEFAULT_DIETARY_PRESETS)) {
-    batch.set(doc(db, "dietary_presets", key), {
-      name: preset.name,
-      desc: preset.desc
-    });
-    opCount++;
-    await commitBatchIfNeeded();
-  }
-
-  // D. Seed Ingredients & Multipliers
+  // Seed Ingredients & Multipliers only — regions/seasons/dietary_presets/recipes are
+  // now static constants in the client bundle and do not need to be stored in Firestore.
   if (statusCallback) statusCallback("Seeding ingredients and multiplier rates...");
   for (const [key, ing] of Object.entries(DEFAULT_INGREDIENTS)) {
     batch.set(doc(db, "ingredients", key), {
@@ -1093,72 +1061,49 @@ async function seed3NFCatalog(statusCallback) {
     await commitBatchIfNeeded();
   }
 
-  // E. Seed Recipes
-  if (statusCallback) statusCallback("Seeding recipe databases...");
-  for (const recipe of DEFAULT_RECIPES) {
-    batch.set(doc(db, "recipes", recipe.id), {
-      name: recipe.name,
-      mealType: recipe.mealType,
-      prepTime: recipe.prepTime,
-      servings: recipe.servings,
-      description: recipe.description,
-      ingredients: recipe.ingredients,
-      instructions: recipe.instructions,
-      dietary: recipe.dietary,
-      tag: recipe.tag
-    });
-    opCount++;
-    await commitBatchIfNeeded();
-  }
-
   // Flush remaining records
   await commitBatchIfNeeded(true);
 }
 
 /**
- * Loads the database documents and rebuilds the local memory configurations.
+ * Loads ONLY the ingredients collection from Firestore and rebuilds the in-memory cache.
+ * REGIONS, SEASONS, DIETARY_PRESETS and RECIPES are static constants — no DB reads needed.
+ * The ingredients collection is still fetched because it stores dynamically synced live
+ * prices from the WFP HAPI / Open Price Engine APIs.
  */
 async function loadAndRebuildCaches() {
-  const [regSnap, seasSnap, dietSnap, ingSnap, recSnap] = await Promise.all([
-    getDocs(collection(db, "regions")),
-    getDocs(collection(db, "seasons")),
-    getDocs(collection(db, "dietary_presets")),
-    getDocs(collection(db, "ingredients")),
-    getDocs(collection(db, "recipes"))
-  ]);
-
-  const tempRegions = {};
-  regSnap.forEach(d => {
-    tempRegions[d.id] = { id: d.id, ...d.data() };
-  });
-
-  const tempSeasons = {};
-  seasSnap.forEach(d => {
-    tempSeasons[d.id] = { id: d.id, ...d.data() };
-  });
-
-  const tempPresets = {};
-  dietSnap.forEach(d => {
-    tempPresets[d.id] = { id: d.id, ...d.data() };
-  });
+  const ingSnap = await getDocs(collection(db, "ingredients"));
 
   const tempIngredients = {};
   ingSnap.forEach(d => {
-    tempIngredients[d.id] = { id: d.id, ...d.data() };
+    const data = d.data();
+    // Preserve static default values (nutrition, multipliers) but merge in any live
+    // prices that were written to Firestore by a previous price sync operation.
+    const defaultIng = DEFAULT_INGREDIENTS[d.id] || {};
+    tempIngredients[d.id] = {
+      id: d.id,
+      name: data.name || defaultIng.name,
+      category: data.category || defaultIng.category,
+      basePrice: data.basePrice !== undefined ? data.basePrice : defaultIng.basePrice,
+      unit: data.unit || defaultIng.unit,
+      livePrices: data.livePrices || {},
+      regionalMultipliers: data.regionalMultipliers || defaultIng.regionalMultipliers || {},
+      seasonalMultipliers: data.seasonalMultipliers || defaultIng.seasonalMultipliers || {},
+      nutrition: {
+        calories: data.calories !== undefined ? data.calories : (defaultIng.nutrition ? defaultIng.nutrition.calories : 0),
+        carbs:    data.carbs    !== undefined ? data.carbs    : (defaultIng.nutrition ? defaultIng.nutrition.carbs    : 0),
+        protein:  data.protein  !== undefined ? data.protein  : (defaultIng.nutrition ? defaultIng.nutrition.protein  : 0),
+        fat:      data.fat      !== undefined ? data.fat      : (defaultIng.nutrition ? defaultIng.nutrition.fat      : 0),
+        fiber:    data.fiber    !== undefined ? data.fiber    : (defaultIng.nutrition ? defaultIng.nutrition.fiber    : 0),
+        sodium:   data.sodium   !== undefined ? data.sodium   : (defaultIng.nutrition ? defaultIng.nutrition.sodium   : 0),
+        iron:     data.iron     !== undefined ? data.iron     : (defaultIng.nutrition ? defaultIng.nutrition.iron     : 0),
+        calcium:  data.calcium  !== undefined ? data.calcium  : (defaultIng.nutrition ? defaultIng.nutrition.calcium  : 0),
+        vitC:     data.vitC     !== undefined ? data.vitC     : (defaultIng.nutrition ? defaultIng.nutrition.vitC     : 0)
+      }
+    };
   });
 
-  const tempRecipes = [];
-  recSnap.forEach(d => {
-    tempRecipes.push({ id: d.id, ...d.data() });
-  });
-
-  Object.assign(REGIONS, tempRegions);
-  Object.assign(SEASONS, tempSeasons);
-  Object.assign(DIETARY_PRESETS, tempPresets);
   Object.assign(INGREDIENTS, tempIngredients);
-  
-  RECIPES.length = 0;
-  tempRecipes.forEach(r => RECIPES.push(r));
 }
 
 // ----------------------------------------------------
@@ -1173,6 +1118,11 @@ export function getIngredientPriceUSD(ingredientId, regionKey, seasonKey) {
   const ing = INGREDIENTS[ingredientId];
   if (!ing) return 0;
 
+  const region = REGIONS[regionKey] || REGIONS.usa || { usdRate: 1.0 };
+  if (ing.livePrices && ing.livePrices[regionKey] !== undefined) {
+    return ing.livePrices[regionKey] / region.usdRate;
+  }
+
   const regMult = ing.regionalMultipliers[regionKey] !== undefined ? ing.regionalMultipliers[regionKey] : 1.0;
   const seasMult = ing.seasonalMultipliers[seasonKey] !== undefined ? ing.seasonalMultipliers[seasonKey] : 1.0;
 
@@ -1183,10 +1133,268 @@ export function getIngredientPriceUSD(ingredientId, regionKey, seasonKey) {
  * Returns the localized price of an ingredient in the region's currency.
  */
 export function getIngredientPriceLocal(ingredientId, regionKey, seasonKey) {
+  const ing = INGREDIENTS[ingredientId];
+  if (!ing) return 0;
+
+  if (ing.livePrices && ing.livePrices[regionKey] !== undefined) {
+    return ing.livePrices[regionKey];
+  }
+
   const usdPrice = getIngredientPriceUSD(ingredientId, regionKey, seasonKey);
   const region = REGIONS[regionKey] || REGIONS.usa || { usdRate: 1.0 };
   return usdPrice * region.usdRate;
 }
+
+// ----------------------------------------------------
+// External Pricing API Mapping and Synchronization Logic
+// ----------------------------------------------------
+
+export const INGREDIENT_API_MAP = {
+  maize_meal: { wfp: "Maize flour (white)", ope: "Maize Meal" },
+  rice: { wfp: "Rice (white)", ope: "White Rice" },
+  potatoes: { wfp: "Potatoes (Irish)", ope: "Potatoes" },
+  sweet_potatoes: { wfp: "Sweet Potatoes", ope: "Sweet Potatoes" },
+  oats: { wfp: "Oats", ope: "Rolled Oats" },
+  bread: { wfp: "Bread", ope: "Whole Wheat Bread" },
+  beef: { wfp: "Beef (meat with bones)", ope: "Beef" },
+  chicken_breast: { wfp: "Chicken", ope: "Chicken Breast" },
+  tilapia: { wfp: "Fish (tilapia)", ope: "Tilapia" },
+  salmon: { wfp: "Fish (salmon)", ope: "Salmon" },
+  beans: { wfp: "Beans (dry)", ope: "Beans" },
+  eggs: { wfp: "Eggs", ope: "Eggs" },
+  sukuma_wiki: { wfp: "Sukuma Wiki", ope: "Collard Greens" },
+  spinach: { wfp: "Spinach", ope: "Spinach" },
+  tomatoes: { wfp: "Tomatoes", ope: "Tomatoes" },
+  cabbage: { wfp: "Cabbage", ope: "Cabbage" },
+  onions: { wfp: "Onions (red)", ope: "Onions" },
+  broccoli: { wfp: "Broccoli", ope: "Broccoli" },
+  bananas: { wfp: "Bananas", ope: "Bananas" },
+  apples: { wfp: "Apples", ope: "Apples" },
+  milk: { wfp: "Milk (fresh)", ope: "Cow Milk" },
+  cheddar_cheese: { wfp: "Cheese", ope: "Cheddar Cheese" },
+  cooking_oil: { wfp: "Oil (vegetable)", ope: "Vegetable Cooking Oil" },
+  peanut_butter: { wfp: "Peanut Butter", ope: "Peanut Butter" },
+  butter: { wfp: "Butter", ope: "Butter" },
+  lamb_chops: { wfp: "Meat (lamb)", ope: "Lamb Chops" },
+  avocado: { wfp: "Avocado", ope: "Avocado" },
+  greek_yogurt: { wfp: "Yogurt", ope: "Greek Yogurt" },
+  almonds: { wfp: "Almonds", ope: "Almonds" },
+  ramen_noodles: { wfp: "Noodles", ope: "Instant Ramen" },
+  pasta: { wfp: "Pasta", ope: "Spaghetti" },
+  garlic: { wfp: "Garlic", ope: "Garlic" },
+  green_onions: { wfp: "Onions (green)", ope: "Green Onions" }
+};
+
+export async function syncLivePrices(regionKey, statusCallback, customApiKey = "") {
+  if (statusCallback) statusCallback(`Initializing sync for ${regionKey}...`);
+
+  const region = REGIONS[regionKey];
+  if (!region) {
+    throw new Error(`Region ${regionKey} is not defined in settings.`);
+  }
+
+  const locationCodeMap = {
+    kenya: "KEN",
+    uganda: "UGA",
+    tanzania: "TZA"
+  };
+
+  const storeMap = {
+    uk: "sainsburys",
+    germany: "rewe",
+    france: "carrefour",
+    usa: "walmart",
+    canada: "loblaws",
+    brazil: "carrefour"
+  };
+
+  const isEastAfrica = locationCodeMap[regionKey] !== undefined;
+  let fetchedPrices = {};
+
+  if (isEastAfrica) {
+    const locCode = locationCodeMap[regionKey];
+    if (statusCallback) statusCallback(`Fetching live WFP data for ${region.name} from HDX HAPI...`);
+
+    const appIdentifier = "Tm91cmlzaFBsYW46ZGV2QG5vdXJpc2hwbGFuLm9yZw==";
+    const url = `https://hapi.humdata.org/api/v2/food-security-nutrition-poverty/food-prices-market-monitor?location_code=${locCode}&limit=1000&price_type=Retail&app_identifier=${appIdentifier}`;
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "Accept": "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HDX HAPI returned HTTP ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === "") {
+        throw new Error("HDX HAPI returned an empty response body.");
+      }
+
+      let json;
+      try {
+        json = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error("HDX HAPI JSON parse failed. Content sample:", responseText.slice(0, 1000));
+        throw new Error(`HDX HAPI response is not valid JSON: ${parseErr.message}`);
+      }
+
+      const records = json.data || [];
+
+      const latestByCommodity = {};
+      for (const rec of records) {
+        const name = rec.commodity_name;
+        if (!name) continue;
+        const currentLatest = latestByCommodity[name];
+        if (!currentLatest || rec.reference_period_end > currentLatest.reference_period_end) {
+          latestByCommodity[name] = rec;
+        }
+      }
+
+      for (const [ingId, mapInfo] of Object.entries(INGREDIENT_API_MAP)) {
+        const wfpName = mapInfo.wfp;
+        const matchingRec = latestByCommodity[wfpName];
+        if (matchingRec && matchingRec.price !== undefined) {
+          fetchedPrices[ingId] = parseFloat(matchingRec.price);
+        }
+      }
+    } catch (err) {
+      console.error("WFP HDX HAPI fetch failed", err);
+      throw new Error(`WFP HDX HAPI fetch failed: ${err.message}`);
+    }
+  } else {
+    const store = storeMap[regionKey];
+    if (!store) {
+      throw new Error(`No default store configured for region ${regionKey}`);
+    }
+
+    if (statusCallback) statusCallback(`Fetching live prices from Open Price Engine for store ${store}...`);
+
+    const activeKey = (customApiKey && customApiKey !== "YOUR_OPEN_ENGINE_API_KEY" && customApiKey.trim() !== "") ? customApiKey : OPEN_ENGINE_API_KEY;
+
+    if (!activeKey || activeKey === "YOUR_OPEN_ENGINE_API_KEY" || activeKey.trim() === "") {
+      throw new Error("Open Price Engine API key is not configured in config.js or user profile.");
+    }
+
+    const productNames = [];
+    const idToProduct = {};
+    for (const [ingId, mapInfo] of Object.entries(INGREDIENT_API_MAP)) {
+      if (mapInfo.ope) {
+        productNames.push(mapInfo.ope);
+        idToProduct[mapInfo.ope.toLowerCase()] = ingId;
+      }
+    }
+
+    const baseUrl = `https://openpricengine.com/api/v1/${store}/products/prices/today`;
+    let url = baseUrl + "?";
+    productNames.forEach(name => {
+      url += `productname=${encodeURIComponent(name)}&`;
+    });
+    if (region.currency) {
+      url += `currency=${encodeURIComponent(region.currency)}`;
+    }
+
+    try {
+      // Attempt 1: send key as raw value (OPE OpenAPI spec: apiKey in header named "Authorization")
+      let response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Authorization": activeKey,
+          "Accept": "application/json"
+        }
+      });
+
+      // Some FastAPI deployments expect "Bearer <key>" — retry once if rejected
+      if (response.status === 401 || response.status === 403) {
+        if (!activeKey.startsWith("Bearer ")) {
+          response = await fetch(url, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${activeKey}`,
+              "Accept": "application/json"
+            }
+          });
+        }
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(
+          "API key rejected (HTTP " + response.status + "). " +
+          "Your Open Price Engine key has likely expired — please use the 'Request OTP Renewal' " +
+          "button in the Profile > Food Price API Sync & Renewal section to get a fresh key."
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(`Open Price Engine returned HTTP ${response.status}`);
+      }
+
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === "") {
+        throw new Error("Open Price Engine returned an empty response body.");
+      }
+
+      let records;
+      try {
+        records = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error("Open Price Engine JSON parse failed. Content sample:", responseText.slice(0, 1000));
+        throw new Error(`Open Price Engine response is not valid JSON: ${parseErr.message}`);
+      }
+      if (Array.isArray(records)) {
+        for (const rec of records) {
+          const prodName = rec["Product Name"] || rec["Product_Name"] || rec.product_name;
+          const priceVal = rec.Price || rec.price;
+          if (prodName && priceVal !== undefined) {
+            const ingId = idToProduct[prodName.toLowerCase()];
+            if (ingId) {
+              let parsedPrice = parseFloat(priceVal);
+              if (isNaN(parsedPrice) && typeof priceVal === 'string') {
+                const cleaned = priceVal.replace(/[^\d.]/g, '');
+                parsedPrice = parseFloat(cleaned);
+              }
+              if (!isNaN(parsedPrice)) {
+                fetchedPrices[ingId] = parsedPrice;
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Open Price Engine fetch failed", err);
+      throw new Error(`Open Price Engine fetch failed: ${err.message}`);
+    }
+  }
+
+  const count = Object.keys(fetchedPrices).length;
+  if (count === 0) {
+    throw new Error("No pricing matches found in the API response.");
+  }
+
+  if (statusCallback) statusCallback(`Writing ${count} updated prices to Firestore...`);
+
+  const batch = writeBatch(db);
+  for (const [ingId, price] of Object.entries(fetchedPrices)) {
+    if (INGREDIENTS[ingId]) {
+      if (!INGREDIENTS[ingId].livePrices) {
+        INGREDIENTS[ingId].livePrices = {};
+      }
+      INGREDIENTS[ingId].livePrices[regionKey] = price;
+
+      const ingDocRef = doc(db, "ingredients", ingId);
+      batch.update(ingDocRef, {
+        [`livePrices.${regionKey}`]: price
+      });
+    }
+  }
+
+  await batch.commit();
+  if (statusCallback) statusCallback(`Successfully synchronized ${count} live prices!`);
+  return count;
+}
+
 
 /**
  * Calculates the cost of a recipe in local currency based on region and season.
@@ -1240,9 +1448,11 @@ export function getRecipeNutritionPerServing(recipeId, dietaryRestrictions = [])
     if (!ing) continue;
 
     const scale = ingRef.amount / 100;
+    const nut = ing.nutrition || ing;
 
     for (const key in totals) {
-      totals[key] += ing.nutrition[key] * scale;
+      const nutValue = nut[key] !== undefined ? nut[key] : 0;
+      totals[key] += nutValue * scale;
     }
   }
 

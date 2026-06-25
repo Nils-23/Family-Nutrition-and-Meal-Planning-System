@@ -6,6 +6,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase-init.js";
 import { REGIONS } from "./data.js";
+import { OPEN_ENGINE_API_KEY, OPEN_ENGINE_EMAIL } from "./config.js";
+
 
 // Default Profile State (used to seed Firestore if empty)
 const DEFAULT_STATE = {
@@ -17,7 +19,11 @@ const DEFAULT_STATE = {
   nextAllowanceDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   region: 'usa',
   season: 'spring',
-  dietaryRestrictions: []
+  dietaryRestrictions: [],
+  opeEmail: OPEN_ENGINE_EMAIL || '',
+  opeApiKey: OPEN_ENGINE_API_KEY || '',
+  opeKeyLastRenewed: new Date().toISOString().split('T')[0],
+  lastPriceSync: 'Never'
 };
 
 export function getCurrentStudentID() {
@@ -71,7 +77,11 @@ export async function loadProfileState() {
       nextAllowanceDate: data.nextAllowanceDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       region: data.region || 'usa',
       season: data.season || 'spring',
-      dietaryRestrictions: data.dietaryRestrictions || []
+      dietaryRestrictions: data.dietaryRestrictions || [],
+      opeEmail: data.opeEmail !== undefined ? data.opeEmail : (OPEN_ENGINE_EMAIL || ''),
+      opeApiKey: data.opeApiKey !== undefined ? data.opeApiKey : (OPEN_ENGINE_API_KEY || ''),
+      opeKeyLastRenewed: data.opeKeyLastRenewed || new Date().toISOString().split('T')[0],
+      lastPriceSync: data.lastPriceSync || 'Never'
     };
 
   } catch (e) {
@@ -91,7 +101,11 @@ export async function saveProfileState(state) {
       region: state.region,
       season: state.season,
       diners: state.diners,
-      dietaryRestrictions: state.dietaryRestrictions
+      dietaryRestrictions: state.dietaryRestrictions,
+      opeEmail: state.opeEmail || '',
+      opeApiKey: state.opeApiKey || '',
+      opeKeyLastRenewed: state.opeKeyLastRenewed || new Date().toISOString().split('T')[0],
+      lastPriceSync: state.lastPriceSync || 'Never'
     });
   } catch (e) {
     console.error("Error saving profile to Firestore", e);

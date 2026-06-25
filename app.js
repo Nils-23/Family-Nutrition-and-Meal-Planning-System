@@ -12,7 +12,8 @@ import {
   REGIONS, 
   SEASONS,
   getRecipeCostLocal,
-  DEMO_USERS
+  DEMO_USERS,
+  syncLivePrices
 } from './data.js';
 import { 
   loadProfileState, 
@@ -47,6 +48,7 @@ let appState = null;
 let activePlan = null;
 let customShoppingItems = [];
 let currentView = 'dashboard';
+let syncPending = false;          // true while an auto-sync is running
 const STUDENT_ID = getCurrentStudentID();
 
 // Initialize the Application
@@ -204,6 +206,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // View Swapping Logic
 function switchView(viewName) {
+  // Block navigation while a region sync is running
+  if (syncPending) {
+    showSyncToast('syncing', '⏳ Sync in progress—please wait…');
+    return;
+  }
   currentView = viewName;
   
   // Update nav menu active states
@@ -275,56 +282,275 @@ function showSavingIndicator(show) {
   }
 }
 
+// Show / update the fixed bottom-right sync toast
+function showSyncToast(type, message) {
+  const toast   = document.getElementById('sync-toast');
+  const iconEl  = document.getElementById('sync-toast-icon');
+  const msgEl   = document.getElementById('sync-toast-msg');
+  if (!toast) return;
+
+  // Update text
+  if (msgEl) msgEl.textContent = message;
+
+  // Set icon based on type
+  if (iconEl) {
+    iconEl.textContent = type === 'success' ? '✅' : type === 'error' ? '❌' : '⏳';
+  }
+
+  // Swap state class
+  toast.classList.remove('toast-syncing', 'toast-success', 'toast-error');
+  toast.classList.add(`toast-${type}`, 'visible');
+}
+
+function hideSyncToast() {
+  const toast = document.getElementById('sync-toast');
+  if (toast) toast.classList.remove('visible');
+}
+
 // 2. Profile Event Handlers
 function setupProfileHandlers() {
+  let lastSyncedRegion = null;
   const form = document.getElementById('profile-config-form');
+
+  // -------------------------------------------------------
+  // Shared price-sync runner — called automatically when the
+  // region dropdown changes AND by the manual sync button.
+  // -------------------------------------------------------
+  async function runPriceSync(targetRegion) {
+    const statusSpan    = document.getElementById('price-sync-status');
+    const indicatorSpan = document.getElementById('price-sync-indicator');
+
+    // Mark sync as running — blocks navigation and form save
+    syncPending = true;
+
+    // Show spinning toast
+    showSyncToast('syncing', `Syncing prices for ${REGIONS[targetRegion]?.name || targetRegion}…`);
+    if (indicatorSpan) indicatorSpan.style.display = 'none';
+    if (statusSpan)    statusSpan.textContent = 'Syncing…';
+
+    try {
+      const count = await syncLivePrices(targetRegion, (msg) => {
+        if (statusSpan) statusSpan.textContent = msg;
+        showSyncToast('syncing', msg);
+      }, appState.opeApiKey);
+
+      lastSyncedRegion = targetRegion;
+      appState.lastPriceSync = new Date().toLocaleString();
+      await saveProfileState(appState);
+
+      if (indicatorSpan) {
+        indicatorSpan.className = 'gauge-status-badge badge-success';
+        indicatorSpan.textContent = 'Synced';
+        indicatorSpan.style.display = 'inline-block';
+      }
+      if (statusSpan) statusSpan.textContent = `Last Sync: ${appState.lastPriceSync} (${count} updated)`;
+
+      // Success toast — auto-dismisses after 3 s
+      showSyncToast('success', `✅ Synced ${count} prices for ${REGIONS[targetRegion]?.name || targetRegion}`);
+      setTimeout(() => hideSyncToast(), 3000);
+
+      if (activePlan) {
+        regeneratePlanCosts();
+      } else {
+        renderActiveView();
+      }
+    } catch (err) {
+      console.error('Price sync failed', err);
+      if (statusSpan) statusSpan.textContent = 'Sync failed: ' + err.message;
+      if (indicatorSpan) {
+        indicatorSpan.className = 'gauge-status-badge badge-danger';
+        indicatorSpan.textContent = 'Error';
+        indicatorSpan.style.display = 'inline-block';
+      }
+      // Error toast stays visible until user dismisses or retries
+      showSyncToast('error', `❌ Sync failed: ${err.message}`);
+      setTimeout(() => hideSyncToast(), 6000);
+    } finally {
+      syncPending = false;
+    }
+  }
+
+  // -------------------------------------------------------
+  // Region dropdown — auto-sync immediately on change
+  // -------------------------------------------------------
+  const regionSelect = document.getElementById('profile-region');
+  if (regionSelect) {
+    regionSelect.addEventListener('change', () => {
+      const newRegion = regionSelect.value;
+      // Kick off auto-sync for the newly selected region
+      runPriceSync(newRegion);
+    });
+  }
+
+  // -------------------------------------------------------
+  // Profile settings form submit
+  // -------------------------------------------------------
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const selectedRegion = document.getElementById('profile-region').value;
-    const selectedSeason = document.getElementById('profile-season').value;
-    const allowanceAmount = parseFloat(document.getElementById('profile-allowance-amount').value);
-    const remainingCash = parseFloat(document.getElementById('profile-remaining-cash').value);
-    const allowanceDate = document.getElementById('profile-allowance-date').value;
+    // Block save while sync is still running
+    if (syncPending) {
+      showSyncToast('syncing', '⏳ Sync in progress—please wait before saving.');
+      return;
+    }
+
+    const selectedRegion    = document.getElementById('profile-region').value;
+    const selectedSeason    = document.getElementById('profile-season').value;
+    const allowanceAmount   = parseFloat(document.getElementById('profile-allowance-amount').value);
+    const remainingCash     = parseFloat(document.getElementById('profile-remaining-cash').value);
+    const allowanceDate     = document.getElementById('profile-allowance-date').value;
+    const emailInput        = document.getElementById('profile-ope-email');
+    const opeEmail          = emailInput ? emailInput.value.trim() : '';
 
     const checkedRestrictions = [];
     const checkboxes = document.querySelectorAll('#profile-dietary-checkboxes input[type="checkbox"]');
     checkboxes.forEach(cb => {
-      if (cb.checked) {
-        checkedRestrictions.push(cb.value);
-      }
+      if (cb.checked) checkedRestrictions.push(cb.value);
     });
 
-    appState.region = selectedRegion;
-    appState.season = selectedSeason;
-    appState.monthlyAllowance = allowanceAmount;
-    appState.remainingBudget = remainingCash;
-    appState.nextAllowanceDate = allowanceDate;
+    appState.region              = selectedRegion;
+    appState.season              = selectedSeason;
+    appState.monthlyAllowance    = allowanceAmount;
+    appState.remainingBudget     = remainingCash;
+    appState.nextAllowanceDate   = allowanceDate;
     appState.dietaryRestrictions = checkedRestrictions;
+    appState.opeEmail            = opeEmail;
 
     showSavingIndicator(true);
     try {
-      // Save changes to Firestore
       await saveProfileState(appState);
 
       if (activePlan) {
-        const confirmRegen = confirm("You have updated your budget, region, season, or dietary options. Would you like to regenerate your meal plan to match these settings?");
+        const confirmRegen = confirm('You have updated your budget, region, season, or dietary options. Would you like to regenerate your meal plan to match these settings?');
         if (confirmRegen) {
           await triggerPlanGeneration();
         } else {
-          // Re-scale the local memory representation of activePlan costs
           regeneratePlanCosts();
         }
       }
 
       renderActiveView();
-      alert("Profile configurations saved to Database!");
+      alert('Profile configurations saved to Database!');
     } catch (err) {
-      alert("Error saving configurations: " + err.message);
+      alert('Error saving configurations: ' + err.message);
     } finally {
       showSavingIndicator(false);
     }
   });
+
+
+  // Request Renewal OTP Click Event Handler
+  const reqOtpBtn = document.getElementById('btn-request-renewal-otp');
+  if (reqOtpBtn) {
+    reqOtpBtn.addEventListener('click', async () => {
+      const emailInput = document.getElementById('profile-ope-email');
+      const email = emailInput ? emailInput.value.trim() : '';
+      if (!email) {
+        alert("Please enter a valid OPE Registered Email first.");
+        return;
+      }
+      
+      const initialText = reqOtpBtn.textContent;
+      reqOtpBtn.disabled = true;
+      reqOtpBtn.textContent = '⏳ Requesting...';
+      
+      try {
+        const url = `https://openpricengine.com/auth/refresh/api_key/request?email=${encodeURIComponent(email)}&plan=free`;
+        const response = await fetch(url, { method: 'POST' });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to request OTP: HTTP ${response.status}`);
+        }
+        
+        // Save the email in state and Firestore
+        appState.opeEmail = email;
+        await saveProfileState(appState);
+        
+        alert("OTP has been sent to your email. Please check your inbox and spam folder.");
+        
+        // Open the verification modal
+        const modalOtp = document.getElementById('modal-otp');
+        if (modalOtp) {
+          modalOtp.showModal();
+        }
+      } catch (err) {
+        alert("Error requesting OTP: " + err.message);
+      } finally {
+        reqOtpBtn.disabled = false;
+        reqOtpBtn.textContent = initialText;
+      }
+    });
+  }
+
+  // OTP Verification Form Submit Event Handler
+  const otpForm = document.getElementById('otp-verification-form');
+  if (otpForm) {
+    otpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const emailInput = document.getElementById('profile-ope-email');
+      const email = emailInput ? emailInput.value.trim() : '';
+      const otpInput = document.getElementById('otp-code');
+      const otp = otpInput ? otpInput.value.trim() : '';
+      
+      if (!email || !otp) {
+        alert("Email and OTP are required.");
+        return;
+      }
+      
+      const submitBtn = otpForm.querySelector('button[type="submit"]');
+      const initialBtnText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Verifying...';
+      }
+      
+      try {
+        const url = `https://openpricengine.com/auth/refresh/api_key?email=${encodeURIComponent(email)}&otp=${encodeURIComponent(otp)}&plan=free`;
+        const response = await fetch(url, { method: 'POST' });
+        
+        if (!response.ok) {
+          throw new Error(`Verification failed: HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const newKey = data.api_key || data.key || data.token || data.apiKey;
+        if (!newKey) {
+          throw new Error("Could not find refreshed API key in the response.");
+        }
+        
+        // Update profile state variables
+        appState.opeApiKey = newKey;
+        appState.opeEmail = email;
+        appState.opeKeyLastRenewed = new Date().toISOString().split('T')[0];
+        
+        // Save to Database
+        await saveProfileState(appState);
+        
+        // Close the modal
+        const modalOtp = document.getElementById('modal-otp');
+        if (modalOtp) {
+          modalOtp.close();
+        }
+        
+        alert("API Key successfully renewed and updated in the user profile!");
+        
+        // Refresh UI to display new key status and enable sync
+        renderActiveView();
+        
+        // Automatically trigger a price sync for the current region
+        const currentRegion = document.getElementById('profile-region')?.value || appState.region;
+        runPriceSync(currentRegion);
+      } catch (err) {
+        alert("Verification failed: " + err.message);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = initialBtnText;
+        }
+      }
+    });
+  }
 
   // Add Member Modal handlers
   const addMemberBtn = document.getElementById('btn-add-member');
@@ -477,7 +703,7 @@ async function triggerPlanGeneration() {
 }
 
 function handleRecipeClick(recipeId) {
-  showRecipeModal(recipeId, appState.dietaryRestrictions, appState.region, appState.season);
+  showRecipeModal(recipeId, appState);
 }
 
 function handleSwapClick(day, slot) {

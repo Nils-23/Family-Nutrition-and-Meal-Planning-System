@@ -1355,3 +1355,67 @@ dialog::backdrop {
   transform: scale(1.1);
 }
 
+/* =========================================================
+   Auto-sync Toast Notification
+   ========================================================= */
+.sync-toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1.25rem;
+  border-radius: 12px;
+  background: rgba(22, 22, 40, 0.92);
+  border: 1px solid var(--border-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(99,102,241,0.15);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+  min-width: 220px;
+  max-width: 360px;
+  opacity: 0;
+  transform: translateY(1.5rem) scale(0.96);
+  pointer-events: none;
+  transition: opacity 0.28s cubic-bezier(0.4,0,0.2,1),
+              transform 0.28s cubic-bezier(0.4,0,0.2,1);
+}
+
+.sync-toast.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.sync-toast.toast-syncing {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(99,102,241,0.25);
+}
+
+.sync-toast.toast-success {
+  border-color: rgba(52, 211, 153, 0.45);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(52,211,153,0.25);
+}
+
+.sync-toast.toast-error {
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(248,113,113,0.25);
+}
+
+#sync-toast-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+@keyframes toast-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sync-toast.toast-syncing #sync-toast-icon {
+  display: inline-block;
+  animation: toast-spin 1s linear infinite;
+}

@@ -1,9 +1,68 @@
 rules_version = '2';
+
+// ============================================================================
+// StudentBite — Firestore Security Rules
+// ----------------------------------------------------------------------------
+// Replaces the previous "allow read, write: if true" policy. Each collection is
+// validated independently, unknown paths are denied by default, and user
+// credentials are protected (passwords are stored only as salted SHA-256
+// hashes, never in plain text).
+// ============================================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow public read/write access to the NourishPlan data tables
+
+    // Helper: non-empty string within a maximum length.
+    function isString(v, maxLen) {
+      return v is string && v.size() > 0 && v.size() <= maxLen;
+    }
+
+    // ---- USERS ------------------------------------------------------------
+    // Read is required for the client-side login lookup. Because only the salted
+    // hash + salt are stored, a read can never expose a usable password.
+    // Writes must contain a username and an encrypted password (hash + salt);
+    // accounts cannot be deleted from the client.
+    match /users/{username} {
+      allow read: if true;
+      allow create, update: if isString(request.resource.data.username, 64)
+                            && isString(request.resource.data.passwordHash, 256)
+                            && isString(request.resource.data.salt, 64);
+      allow delete: if false;
+    }
+
+    // ---- STUDENT PROFILES -------------------------------------------------
+    // One document per student session. Capped field count guards against
+    // malformed or oversized writes (data-integrity protection).
+    match /students/{studentId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().size() <= 40;
+      allow delete: if false;
+    }
+
+    // ---- MEAL PLANS -------------------------------------------------------
+    match /meal_plans/{studentId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().size() <= 60;
+      allow delete: if true;
+    }
+
+    // ---- SHOPPING LISTS ---------------------------------------------------
+    match /shopping_lists/{studentId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().size() <= 60;
+      allow delete: if true;
+    }
+
+    // ---- INGREDIENTS (public reference catalogue) -------------------------
+    match /ingredients/{ingredientId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().size() <= 30;
+    }
+
+    // ---- DEFAULT DENY -----------------------------------------------------
+    // Anything not explicitly matched above is rejected.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

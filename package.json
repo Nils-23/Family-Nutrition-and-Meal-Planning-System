@@ -1,14 +1,14 @@
 {
-  "name": "family-nutrition-meal-planner",
+  "name": "student-nutrition-meal-planner",
   "version": "1.0.0",
-  "description": "Intelligent Family Nutrition and Meal Planning System",
+  "description": "Intelligent Student Nutrition and Meal Planning System",
   "main": "index.html",
   "scripts": {
     "dev": "npx -y http-server -p 3000 -c-1"
   },
   "keywords": [
     "nutrition",
-    "family",
+    "student",
     "meal-planner",
     "budgeting"
   ],

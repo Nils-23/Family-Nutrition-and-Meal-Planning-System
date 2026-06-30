@@ -611,15 +611,15 @@ export function renderNutrition(state, activePlan) {
     { key: 'protein', name: 'Protein', unit: 'g', color: 'var(--accent-primary)' },
     { key: 'carbs', name: 'Carbs', unit: 'g', color: 'var(--accent-tertiary)' },
     { key: 'fat', name: 'Fat', unit: 'g', color: 'var(--accent-gold)' },
-    { key: 'fiber', name: 'Dietary Fiber', unit: 'g', color: 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)' }
+    { key: 'fiber', name: 'Dietary Fiber', unit: 'g', color: 'linear-gradient(135deg, #7A9A3E 0%, #6E8B3D 100%)' }
   ];
 
   // Populate Micros
   const microList = [
-    { key: 'calcium', name: 'Calcium', unit: 'mg', color: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' },
-    { key: 'iron', name: 'Iron', unit: 'mg', color: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 100%)' },
-    { key: 'vitC', name: 'Vitamin C', unit: 'mg', color: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)' },
-    { key: 'sodium', name: 'Sodium (Limit)', unit: 'mg', color: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)', isLimit: true }
+    { key: 'calcium', name: 'Calcium', unit: 'mg', color: 'linear-gradient(135deg, #2E8B6B 0%, #4FB286 100%)' },
+    { key: 'iron', name: 'Iron', unit: 'mg', color: 'linear-gradient(135deg, #B23A48 0%, #D06A78 100%)' },
+    { key: 'vitC', name: 'Vitamin C', unit: 'mg', color: 'linear-gradient(135deg, #E3A02A 0%, #F0BE5C 100%)' },
+    { key: 'sodium', name: 'Sodium (Limit)', unit: 'mg', color: 'linear-gradient(135deg, #C5562F 0%, #DD7E52 100%)', isLimit: true }
   ];
 
   const renderBars = (elementsList, containerId) => {
@@ -922,7 +922,7 @@ export function showRecipeModal(recipeId, state) {
     </ol>
 
     <div class="recipe-section-title">Nutrition Target per Serving</div>
-    <div style="font-size:0.8rem; background:rgba(255,255,255,0.02); border:1px solid var(--border-glass); border-radius:10px; padding:1rem;">
+    <div style="font-size:0.8rem; background:rgba(56,44,38,0.03); border:1px solid var(--border-glass); border-radius:10px; padding:1rem;">
       <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; text-align:center;">
         <div>
           <span class="metric-label" style="font-size:0.65rem;">Calories</span>

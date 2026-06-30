@@ -3,10 +3,12 @@ import {
   getDoc,
   doc, 
   setDoc, 
-  deleteDoc, 
-  updateDoc
+  deleteDoc,
+  updateDoc,
+  deleteField
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase-init.js";
+import { generateSalt, hashPassword, verifyPassword, sanitizeText } from "./security.js";
 import { 
   initializeFirestoreData,
   REGIONS, 
@@ -101,7 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const loginForm = document.getElementById('login-form');
       loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('login-username').value.trim().toLowerCase();
+        const username = sanitizeText(document.getElementById('login-username').value, 64).toLowerCase();
         const password = document.getElementById('login-password').value;
         const errorEl = document.getElementById('login-error');
         errorEl.textContent = '';
@@ -119,9 +121,29 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
 
           const userData = userSnap.data();
-          if (userData.password !== password) {
+
+          // Verify credentials against the encrypted (salted SHA-256) password.
+          let authOK = false;
+          if (userData.passwordHash && userData.salt) {
+            authOK = await verifyPassword(password, userData.salt, userData.passwordHash);
+          } else if (typeof userData.password === 'string') {
+            // Legacy plain-text account: verify once, then transparently upgrade
+            // it to an encrypted hash and remove the plain-text field.
+            authOK = userData.password === password;
+            if (authOK) {
+              try {
+                const salt = generateSalt();
+                const passwordHash = await hashPassword(password, salt);
+                await updateDoc(userDocRef, { passwordHash, salt, password: deleteField() });
+              } catch (mErr) {
+                console.warn("Password upgrade skipped", mErr);
+              }
+            }
+          }
+
+          if (!authOK) {
             loadingOverlay.classList.add('hidden');
-            errorEl.textContent = "Incorrect password. Password must match the username.";
+            errorEl.textContent = "Incorrect password.";
             return;
           }
 

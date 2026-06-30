@@ -8,6 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase-init.js";
 import { OPEN_ENGINE_API_KEY, OPEN_ENGINE_EMAIL } from "./config.js";
+import { generateSalt, hashPassword } from "./security.js";
 
 
 // Private Default Mockup Catalogs (used for seeding Firestore on first load)
@@ -422,7 +423,7 @@ const DEFAULT_RECIPES = [
       'Sauté the remaining onions and sukuma wiki in another pan with 20mL oil for 5 minutes.',
       'Serve beef stew hot with ugali and sukuma wiki.'
     ],
-    description: 'A comforting, high-protein family meal pairing tender beef stew with traditional grains and greens.'
+    description: 'A comforting, high-protein hearty meal pairing tender beef stew with traditional grains and greens.'
   },
   {
     id: 'lentil_curry_rice',
@@ -1009,10 +1010,15 @@ async function seedDemoUsers(statusCallback) {
   const batch = writeBatch(db);
   for (const user of DEMO_USERS) {
     const userDocRef = doc(db, "users", user.username);
+    // Demo accounts use the username as the password, but it is encrypted with a
+    // unique salt before storage — plain-text passwords are never persisted.
+    const salt = generateSalt();
+    const passwordHash = await hashPassword(user.username, salt);
     batch.set(userDocRef, {
       username: user.username,
       name: user.name,
-      password: user.username,
+      passwordHash,
+      salt,
       region: user.region
     });
   }
